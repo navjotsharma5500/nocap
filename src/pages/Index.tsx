@@ -1,12 +1,36 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+import { useState } from 'react';
+import { Navbar } from '@/components/Navbar';
+import { StudentView } from '@/components/student/StudentView';
+import { SocietyEBView } from '@/components/society-eb/SocietyEBView';
+import { PresidentView } from '@/components/society-president/PresidentView';
+import { FacultyAdminView } from '@/components/faculty-admin/FacultyAdminView';
+import { GuardView } from '@/components/guard/GuardView';
+import { UserRole } from '@/types/campuspass';
 
 const Index = () => {
+  const [currentRole, setCurrentRole] = useState<UserRole>('Student');
+
+  const renderView = () => {
+    switch (currentRole) {
+      case 'Student':
+        return <StudentView />;
+      case 'Society_EB':
+        return <SocietyEBView />;
+      case 'Society_President':
+        return <PresidentView />;
+      case 'Faculty_Admin':
+        return <FacultyAdminView />;
+      case 'Guard':
+        return <GuardView />;
+      default:
+        return <StudentView />;
+    }
+  };
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
-      <div className="text-center">
-        <h1 className="mb-4 text-4xl font-bold">Welcome to Your Blank App</h1>
-        <p className="text-xl text-muted-foreground">Start building your amazing project here!</p>
-      </div>
+    <div className="min-h-screen bg-background">
+      <Navbar currentRole={currentRole} onRoleChange={setCurrentRole} />
+      {renderView()}
     </div>
   );
 };
