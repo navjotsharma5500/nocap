@@ -1,4 +1,4 @@
-import { Student, PermissionRequest, PermissionHistory } from '@/types/campuspass';
+import { Student, PermissionRequest, PermissionHistory, RoomBookingRequest, VenueRequest } from '@/types/campuspass';
 
 export const currentStudent: Student = {
   id: '1',
@@ -48,6 +48,78 @@ export const permissionRequests: PermissionRequest[] = [
     createdBy: 'Ravi Kumar (Gen Sec)',
     createdAt: '2024-12-01T09:00:00',
   },
+];
+
+export const roomBookingRequests: RoomBookingRequest[] = [
+  {
+    id: '1',
+    roomName: 'Meeting Room 101',
+    building: 'Student Activity Center',
+    date: '2024-12-05',
+    timeSlot: '21:00 - 02:00',
+    purpose: 'Hackathon overnight coding session',
+    society: 'Tech Club',
+    status: 'pending_president',
+    createdBy: 'Amit Gupta (Gen Sec)',
+    createdAt: '2024-12-03T11:00:00',
+  },
+  {
+    id: '2',
+    roomName: 'Rehearsal Hall B',
+    building: 'Cultural Block',
+    date: '2024-12-06',
+    timeSlot: '22:00 - 01:00',
+    purpose: 'Late night play rehearsal',
+    society: 'Drama Club',
+    status: 'approved',
+    createdBy: 'Neha Reddy (Gen Sec)',
+    createdAt: '2024-12-02T15:00:00',
+  },
+];
+
+export const venueRequests: VenueRequest[] = [
+  {
+    id: '1',
+    venueName: 'Main Auditorium',
+    eventName: 'TechFest 2024 - Opening Ceremony',
+    date: '2024-12-10',
+    startTime: '18:00',
+    endTime: '22:00',
+    expectedAttendees: 500,
+    society: 'Tech Club',
+    status: 'pending_dosa',
+    createdBy: 'Amit Gupta (Gen Sec)',
+    createdAt: '2024-12-01T09:00:00',
+  },
+  {
+    id: '2',
+    venueName: 'Open Air Theatre',
+    eventName: 'Annual Drama Night',
+    date: '2024-12-15',
+    startTime: '19:00',
+    endTime: '23:00',
+    expectedAttendees: 300,
+    society: 'Drama Club',
+    status: 'pending_president',
+    createdBy: 'Neha Reddy (Gen Sec)',
+    createdAt: '2024-12-02T10:00:00',
+  },
+];
+
+export const availableRooms = [
+  { id: '1', name: 'Meeting Room 101', building: 'Student Activity Center' },
+  { id: '2', name: 'Meeting Room 102', building: 'Student Activity Center' },
+  { id: '3', name: 'Rehearsal Hall A', building: 'Cultural Block' },
+  { id: '4', name: 'Rehearsal Hall B', building: 'Cultural Block' },
+  { id: '5', name: 'Computer Lab 3', building: 'Tech Block' },
+];
+
+export const availableVenues = [
+  { id: '1', name: 'Main Auditorium', capacity: 800 },
+  { id: '2', name: 'Open Air Theatre', capacity: 500 },
+  { id: '3', name: 'Seminar Hall 1', capacity: 150 },
+  { id: '4', name: 'Central Lawn', capacity: 1000 },
+  { id: '5', name: 'Mini Auditorium', capacity: 200 },
 ];
 
 export const permissionHistory: PermissionHistory[] = [
