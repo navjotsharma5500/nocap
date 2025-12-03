@@ -20,6 +20,33 @@ export interface PermissionRequest {
   createdAt: string;
 }
 
+export interface RoomBookingRequest {
+  id: string;
+  roomName: string;
+  building: string;
+  date: string;
+  timeSlot: string;
+  purpose: string;
+  society: string;
+  status: 'pending_president' | 'pending_dosa' | 'approved' | 'rejected';
+  createdBy: string;
+  createdAt: string;
+}
+
+export interface VenueRequest {
+  id: string;
+  venueName: string;
+  eventName: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  expectedAttendees: number;
+  society: string;
+  status: 'pending_president' | 'pending_dosa' | 'approved' | 'rejected';
+  createdBy: string;
+  createdAt: string;
+}
+
 export interface PermissionHistory {
   id: string;
   date: string;
