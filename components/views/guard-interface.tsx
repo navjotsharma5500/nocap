@@ -152,6 +152,25 @@ export default function GuardInterface() {
                 <Search className="w-4 h-4" />
                 {verifying ? "Verifying with CampusPass Core..." : "Verify Student"}
               </Button>
+              
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-background px-2 text-muted-foreground">Or</span>
+                </div>
+              </div>
+              
+              <Button 
+                type="button" 
+                variant="outline" 
+                className="w-full gap-2 text-base h-12 border-2 border-primary hover:bg-primary hover:text-primary-foreground"
+                onClick={() => window.location.href = '/guard-scanner'}
+              >
+                <QrCode className="w-5 h-5" />
+                Use Camera QR Scanner
+              </Button>
             </form>
           </CardContent>
         </Card>

@@ -161,9 +161,17 @@ export default function VerifiedPassScreen({ studentData, onBack }: VerifiedPass
           <p className="text-white/95 text-sm font-semibold leading-relaxed">
             This is a LIVE pass with real-time verification. Screenshots and photos are INVALID and will be flagged by the system.
           </p>
-          <div className="bg-white/10 rounded-lg p-2 mt-2">
-            <p className="text-white/90 text-xs font-medium">
-              🔒 Show QR code to guard scanner at gate checkpoint
+          <div className="bg-white/10 rounded-lg p-3 mt-3 space-y-2">
+            <p className="text-white/90 text-sm font-bold">
+              📱 Scan this QR code TWICE:
+            </p>
+            <div className="flex items-center justify-center gap-2 text-xs text-white/90">
+              <span className="bg-white/20 px-3 py-1 rounded-full font-semibold">1️⃣ When LEAVING hostel</span>
+              <span className="text-white/60">•</span>
+              <span className="bg-white/20 px-3 py-1 rounded-full font-semibold">2️⃣ When RETURNING</span>
+            </div>
+            <p className="text-white/80 text-xs mt-2">
+              🔒 Same QR works for both check-out and check-in
             </p>
           </div>
         </div>

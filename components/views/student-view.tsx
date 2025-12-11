@@ -200,14 +200,28 @@ export default function StudentView() {
       <div className="max-w-md mx-auto space-y-6">
         {/* Status Card */}
         <Card className="border-0 shadow-lg overflow-hidden">
-          <div className="bg-primary/10 border-b-2 border-primary p-6">
+          <div className={`${
+            myRequests.some(r => r.status === 'approved_qr_generated' && r.approvalHistory.some(h => h.level === 'student' && h.action === 'checked_out'))
+              ? 'bg-orange-100 border-orange-200' 
+              : 'bg-primary/10 border-primary'
+          } border-b-2 p-6`}>
             <div className="text-center space-y-2">
               <p className="text-sm text-muted-foreground font-medium">Current Status</p>
-              <h2 className="text-3xl font-bold text-primary flex items-center justify-center gap-2">
+              <h2 className={`text-3xl font-bold flex items-center justify-center gap-2 ${
+                myRequests.some(r => r.status === 'approved_qr_generated' && r.approvalHistory.some(h => h.level === 'student' && h.action === 'checked_out'))
+                  ? 'text-orange-600'
+                  : 'text-primary'
+              }`}>
                 <MapPin className="w-6 h-6" />
-                In Hostel
+                {myRequests.some(r => r.status === 'approved_qr_generated' && r.approvalHistory.some(h => h.level === 'student' && h.action === 'checked_out' && h.action !== 'checked_in'))
+                  ? 'Out of Hostel'
+                  : 'In Hostel'}
               </h2>
-              <p className="text-xs text-muted-foreground">Last verified at 10:32 PM</p>
+              <p className="text-xs text-muted-foreground">
+                {myRequests.some(r => r.status === 'approved_qr_generated' && r.approvalHistory.some(h => h.level === 'student' && h.action === 'checked_out'))
+                  ? `Checked out at ${myRequests.find(r => r.status === 'approved_qr_generated')?.approvalHistory.find(h => h.action === 'checked_out')?.timestamp || 'N/A'}`
+                  : 'Last verified at 10:32 PM'}
+              </p>
             </div>
           </div>
           <CardContent className="pt-6 space-y-4">

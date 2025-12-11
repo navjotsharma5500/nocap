@@ -195,7 +195,7 @@ app.post('/api/approvals/faculty/approve', async (req, res) => {
   }
 });
 
-// Guard - Verify QR Code at Gate
+// Guard - Verify QR Code at Gate (Check-out and Check-in)
 app.post('/api/guard/verify-qr', async (req, res) => {
   try {
     const { qrToken, guardId } = req.body;
@@ -228,15 +228,6 @@ app.post('/api/guard/verify-qr', async (req, res) => {
       return res.json({ success: false, message: 'Pass not found in system' });
     }
 
-    // Check if already verified
-    if (request.verifiedAt) {
-      return res.json({
-        success: false,
-        message: 'Pass already used',
-        verifiedAt: request.verifiedAt.toLocaleString(),
-      });
-    }
-
     // Check expiry
     if (request.expiresAt && new Date() > request.expiresAt) {
       return res.json({ success: false, message: 'Pass expired' });
@@ -247,28 +238,81 @@ app.post('/api/guard/verify-qr', async (req, res) => {
       return res.json({ success: false, message: 'Pass not approved' });
     }
 
-    // Mark as verified
-    await prisma.permissionRequest.update({
-      where: { id: request.id },
-      data: {
-        verifiedAt: new Date(),
-        verifiedBy: guardId || 'guard-unknown',
-      },
-    });
+    // STATE MACHINE: Determine if this is CHECK-OUT or CHECK-IN
+    const isCheckOut = !request.checkOutAt;
+    const isCheckIn = request.checkOutAt && !request.checkInAt;
 
-    res.json({
-      success: true,
-      message: 'Student verified successfully',
-      student: {
-        name: request.student.name,
-        rollNo: request.student.rollNo,
-        hostel: request.student.branch ? `${request.student.branch}-Block` : 'Unknown',
-        reason: request.reason,
-        validUntil: request.expiresAt?.toLocaleString() || 'N/A',
-        society: request.society.name,
-        exitTime: request.exitTime,
-      },
-    });
+    // Validate state
+    if (request.checkOutAt && request.checkInAt) {
+      return res.json({
+        success: false,
+        message: 'Pass already fully used (check-out and check-in completed)',
+        checkOutAt: request.checkOutAt.toLocaleString(),
+        checkInAt: request.checkInAt.toLocaleString(),
+      });
+    }
+
+    if (isCheckOut) {
+      // HANDLE CHECK-OUT (Student leaving hostel)
+      await prisma.permissionRequest.update({
+        where: { id: request.id },
+        data: {
+          checkOutAt: new Date(),
+          checkOutBy: guardId || 'guard-unknown',
+          verifiedAt: new Date(), // Keep for backwards compatibility
+          verifiedBy: guardId || 'guard-unknown',
+        },
+      });
+
+      return res.json({
+        success: true,
+        action: 'check-out',
+        message: 'Student authorized to exit hostel',
+        student: {
+          name: request.student.name,
+          rollNo: request.student.rollNo,
+          hostel: request.student.branch ? `${request.student.branch}-Block` : 'Unknown',
+          reason: request.reason,
+          exitTime: request.exitTime,
+          checkOutAt: new Date().toLocaleString(),
+          validUntil: request.expiresAt?.toLocaleString() || 'N/A',
+          society: request.society.name,
+        },
+      });
+    } else if (isCheckIn) {
+      // HANDLE CHECK-IN (Student returning to hostel)
+      const checkInTime = new Date();
+      const duration = checkInTime.getTime() - request.checkOutAt!.getTime();
+      const hours = Math.floor(duration / (1000 * 60 * 60));
+      const minutes = Math.floor((duration % (1000 * 60 * 60)) / (1000 * 60));
+
+      await prisma.permissionRequest.update({
+        where: { id: request.id },
+        data: {
+          checkInAt: checkInTime,
+          checkInBy: guardId || 'guard-unknown',
+        },
+      });
+
+      return res.json({
+        success: true,
+        action: 'check-in',
+        message: 'Student returned safely to hostel',
+        student: {
+          name: request.student.name,
+          rollNo: request.student.rollNo,
+          hostel: request.student.branch ? `${request.student.branch}-Block` : 'Unknown',
+          reason: request.reason,
+          exitTime: request.exitTime,
+          checkOutAt: request.checkOutAt!.toLocaleString(),
+          checkInAt: checkInTime.toLocaleString(),
+          duration: `${hours}h ${minutes}m`,
+          society: request.society.name,
+        },
+      });
+    } else {
+      return res.json({ success: false, message: 'Invalid state' });
+    }
   } catch (error) {
     console.error('Verification error:', error);
     res.status(500).json({ success: false, message: 'Verification failed' });
