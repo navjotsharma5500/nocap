@@ -118,12 +118,22 @@ app.get('/api/permissions/student/:studentId', async (req, res) => {
   res.json(requests);
 });
 
-// 5. Approval Workflow (President -> DoSA)
+// 5. Approval Workflow (President -> Faculty)
 app.get('/api/approvals/president/:societyId', async (req, res) => {
   const { societyId } = req.params;
   const requests = await prisma.permissionRequest.findMany({
     where: { societyId, status: 'PENDING_PRESIDENT' },
     include: { student: true },
+  });
+  res.json(requests);
+});
+
+// Faculty Admin - Get all pending requests
+app.get('/api/approvals/faculty', async (req, res) => {
+  const requests = await prisma.permissionRequest.findMany({
+    where: { status: 'PENDING_FACULTY' },
+    include: { student: true, society: true },
+    orderBy: { createdAt: 'asc' },
   });
   res.json(requests);
 });
@@ -195,7 +205,7 @@ app.post('/api/approvals/faculty/approve', async (req, res) => {
   }
 });
 
-// Guard - Verify QR Code at Gate (Check-out and Check-in)
+// Guard - Verify QR Code (Simple Single Scan)
 app.post('/api/guard/verify-qr', async (req, res) => {
   try {
     const { qrToken, guardId } = req.body;
@@ -238,81 +248,33 @@ app.post('/api/guard/verify-qr', async (req, res) => {
       return res.json({ success: false, message: 'Pass not approved' });
     }
 
-    // STATE MACHINE: Determine if this is CHECK-OUT or CHECK-IN
-    const isCheckOut = !request.checkOutAt;
-    const isCheckIn = request.checkOutAt && !request.checkInAt;
-
-    // Validate state
-    if (request.checkOutAt && request.checkInAt) {
-      return res.json({
-        success: false,
-        message: 'Pass already fully used (check-out and check-in completed)',
-        checkOutAt: request.checkOutAt.toLocaleString(),
-        checkInAt: request.checkInAt.toLocaleString(),
-      });
-    }
-
-    if (isCheckOut) {
-      // HANDLE CHECK-OUT (Student leaving hostel)
+    // Mark as verified (optional - for audit trail)
+    if (!request.verifiedAt) {
       await prisma.permissionRequest.update({
         where: { id: request.id },
         data: {
-          checkOutAt: new Date(),
-          checkOutBy: guardId || 'guard-unknown',
-          verifiedAt: new Date(), // Keep for backwards compatibility
+          verifiedAt: new Date(),
           verifiedBy: guardId || 'guard-unknown',
         },
       });
-
-      return res.json({
-        success: true,
-        action: 'check-out',
-        message: 'Student authorized to exit hostel',
-        student: {
-          name: request.student.name,
-          rollNo: request.student.rollNo,
-          hostel: request.student.branch ? `${request.student.branch}-Block` : 'Unknown',
-          reason: request.reason,
-          exitTime: request.exitTime,
-          checkOutAt: new Date().toLocaleString(),
-          validUntil: request.expiresAt?.toLocaleString() || 'N/A',
-          society: request.society.name,
-        },
-      });
-    } else if (isCheckIn) {
-      // HANDLE CHECK-IN (Student returning to hostel)
-      const checkInTime = new Date();
-      const duration = checkInTime.getTime() - request.checkOutAt!.getTime();
-      const hours = Math.floor(duration / (1000 * 60 * 60));
-      const minutes = Math.floor((duration % (1000 * 60 * 60)) / (1000 * 60));
-
-      await prisma.permissionRequest.update({
-        where: { id: request.id },
-        data: {
-          checkInAt: checkInTime,
-          checkInBy: guardId || 'guard-unknown',
-        },
-      });
-
-      return res.json({
-        success: true,
-        action: 'check-in',
-        message: 'Student returned safely to hostel',
-        student: {
-          name: request.student.name,
-          rollNo: request.student.rollNo,
-          hostel: request.student.branch ? `${request.student.branch}-Block` : 'Unknown',
-          reason: request.reason,
-          exitTime: request.exitTime,
-          checkOutAt: request.checkOutAt!.toLocaleString(),
-          checkInAt: checkInTime.toLocaleString(),
-          duration: `${hours}h ${minutes}m`,
-          society: request.society.name,
-        },
-      });
-    } else {
-      return res.json({ success: false, message: 'Invalid state' });
     }
+
+    // Return success with student details
+    res.json({
+      success: true,
+      message: '✓ STUDENT APPROVED TO LEAVE',
+      student: {
+        name: request.student.name,
+        rollNo: request.student.rollNo,
+        hostel: request.student.branch ? `${request.student.branch}-Block` : 'Unknown',
+        reason: request.reason,
+        exitTime: request.exitTime,
+        returnTime: request.returnTime || 'Not specified',
+        validUntil: request.expiresAt?.toLocaleString() || 'N/A',
+        society: request.society.name,
+        verifiedAt: request.verifiedAt?.toLocaleString() || 'Just now',
+      },
+    });
   } catch (error) {
     console.error('Verification error:', error);
     res.status(500).json({ success: false, message: 'Verification failed' });
@@ -367,7 +329,7 @@ app.get('/api/student/:studentId/active-pass', async (req, res) => {
 
 app.get('/api/approvals/faculty', async (req, res) => {
   const requests = await prisma.permissionRequest.findMany({
-    where: { status: 'PENDING_FACULTY' },
+    where: { status: 'PENDING_FACULTY' as const },
     include: { student: true, society: true },
   });
   res.json(requests);
