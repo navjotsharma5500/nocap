@@ -4,7 +4,6 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 enum Role {
@@ -17,7 +16,7 @@ enum Role {
 
 enum RequestStatus {
   PENDING_PRESIDENT
-  PENDING_DOSA
+  PENDING_FACULTY
   APPROVED
   REJECTED
 }
@@ -74,16 +73,21 @@ model Membership {
 }
 
 model PermissionRequest {
-  id          String        @id @default(uuid())
-  studentId   String
-  societyId   String
-  reason      String
-  date        DateTime
-  exitTime    String
-  returnTime  String?
-  status      RequestStatus @default(PENDING_PRESIDENT)
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  id            String        @id @default(uuid())
+  studentId     String
+  societyId     String
+  reason        String
+  date          DateTime
+  exitTime      String
+  returnTime    String?
+  status        RequestStatus @default(PENDING_PRESIDENT)
+  qrToken       String?       @unique
+  qrGeneratedAt DateTime?
+  expiresAt     DateTime?
+  verifiedAt    DateTime?
+  verifiedBy    String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
 
   student User    @relation(fields: [studentId], references: [id])
   society Society @relation(fields: [societyId], references: [id])
@@ -116,7 +120,7 @@ model VenueBooking {
   startTime         String
   endTime           String
   expectedAttendees Int
-  status            RequestStatus @default(PENDING_DOSA) // Venues might go straight to DoSA or via President
+  status            RequestStatus @default(PENDING_FACULTY)
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 

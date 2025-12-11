@@ -68,7 +68,7 @@ The frontend will run on `http://localhost:3000`.
 
 - **Role-Based Login**: Student, Society EB, President, Faculty Admin, Guard.
 - **Society Membership**: Students can request to join societies.
-- **Permission Workflow**: Student -> EB -> President -> DoSA -> Guard.
+- **Permission Workflow**: Student -> EB -> President -> Faculty Admin (Final) -> Guard.
 - **Digital Pass**: QR Code with "Green Screen" verification and anti-screenshot protection.
 - **Mobile Responsive**: Designed for use on mobile devices.
 
