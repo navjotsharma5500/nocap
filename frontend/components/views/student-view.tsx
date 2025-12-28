@@ -12,10 +12,19 @@ import WorkflowTracker from "@/components/workflow-tracker"
 import { getStatusLabel, getStatusColor } from "@/lib/workflow-data"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
-const STUDENT_ID = "student-001" // Replace with actual auth user ID
-const SOCIETY_ID = "society-001" // Replace with student's society
+// Fallback IDs for demo mode
+const DEFAULT_STUDENT_ID = "53a598ae-bac8-4bd6-a103-5dc48275eaad"
+const DEFAULT_SOCIETY_ID = "7369c6c1-3881-4ef3-a17a-390b63d4895e"
 
-export default function StudentView() {
+interface StudentViewProps {
+  studentId?: string
+  societyId?: string
+}
+
+export default function StudentView({ studentId, societyId }: StudentViewProps) {
+  const STUDENT_ID = studentId || DEFAULT_STUDENT_ID
+  const SOCIETY_ID = societyId || DEFAULT_SOCIETY_ID
+
   const [currentScreen, setCurrentScreen] = useState<"home" | "greenpass" | "history" | "new_request" | "track">("home")
   const [passActive, setPassActive] = useState(false)
   const [elapsedSeconds, setElapsedSeconds] = useState(0)
@@ -34,7 +43,7 @@ export default function StudentView() {
       const response = await fetch(`${API_URL}/api/permissions/student/${STUDENT_ID}`)
       const data = await response.json()
       setMyRequests(data)
-      
+
       // Check for approved pass with QR token
       const approved = data.find((r: any) => r.status === 'APPROVED' && r.qrToken)
       if (approved) {
@@ -80,16 +89,18 @@ export default function StudentView() {
           returnTime: '23:00',
         }),
       })
-      
+
       if (response.ok) {
         await fetchRequests() // Refresh list
         setCurrentScreen("track")
       } else {
-        alert('Failed to submit request')
+        const error = await response.json()
+        console.error('API Error:', error)
+        alert(`Failed to submit request: ${error.error || 'Unknown error'}`)
       }
     } catch (error) {
       console.error('Failed to create request:', error)
-      alert('Failed to submit request')
+      alert('Failed to submit request. Please check console for details.')
     }
   }
 
@@ -101,7 +112,7 @@ export default function StudentView() {
           rollNo: activePass.student?.rollNo || "N/A",
           hostel: "B-Block", // From student profile
           qrToken: activePass.qrToken,
-          validUntil: activePass.expiresAt || new Date(Date.now() + 24*60*60*1000).toISOString(),
+          validUntil: activePass.expiresAt || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
           reason: activePass.reason,
           exitTime: activePass.exitTime,
         }}

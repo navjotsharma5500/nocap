@@ -9,9 +9,18 @@ import WorkflowTracker from "@/components/workflow-tracker"
 import { getStatusLabel, getStatusColor } from "@/lib/workflow-data"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
-const SOCIETY_ID = "society-001" // Replace with actual society ID from auth
+// Fallback ID for demo mode
+const DEFAULT_SOCIETY_ID = "7369c6c1-3881-4ef3-a17a-390b63d4895e"
 
-export default function SocietyPresidentDashboard() {
+interface SocietyPresidentDashboardProps {
+  societyId?: string
+  societyName?: string
+}
+
+export default function SocietyPresidentDashboard({ societyId, societyName }: SocietyPresidentDashboardProps) {
+  const SOCIETY_ID = societyId || DEFAULT_SOCIETY_ID
+  const displayName = societyName || "Your Society"
+
   const [requests, setRequests] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -31,56 +40,8 @@ export default function SocietyPresidentDashboard() {
       setLoading(false)
     }
   }
-    {
-      id: "1",
-      type: "individual",
-      studentName: "Aakash Mehta",
-      rollNo: "CS21B050",
-      reason: "Lab project deadline",
-      date: "2025-12-11",
-      ebName: "Priya Singh (EB)",
-      submittedAt: "1 hour ago",
-      status: "pending_president_review",
-      approvalHistory: [
-        { level: "student" as const, action: "approved" as const, timestamp: "Dec 11, 2:00 PM" },
-        { level: "society_eb" as const, action: "approved" as const, timestamp: "Dec 11, 2:30 PM" },
-        { level: "society_president" as const, action: "pending" as const },
-        { level: "faculty_admin" as const, action: "pending" as const },
-      ],
-    },
-    {
-      id: "2",
-      type: "bulk",
-      studentName: "Hackathon Team",
-      rollNo: "15 students",
-      reason: "Hackathon Prep",
-      date: "2025-12-12",
-      ebName: "Rahul Kumar (EB)",
-      submittedAt: "3 hours ago",
-      status: "pending_president_review",
-      approvalHistory: [
-        { level: "society_eb" as const, action: "approved" as const, timestamp: "Dec 11, 11:00 AM" },
-        { level: "society_president" as const, action: "pending" as const },
-        { level: "faculty_admin" as const, action: "pending" as const },
-      ],
-    },
-    {
-      id: "3",
-      type: "individual",
-      studentName: "Sneha Patel",
-      rollNo: "CS21B051",
-      reason: "Competition preparation",
-      date: "2025-12-11",
-      ebName: "Amit Patel (EB)",
-      submittedAt: "2 hours ago",
-      status: "pending_faculty_review",
-      approvalHistory: [
-        { level: "student" as const, action: "approved" as const, timestamp: "Dec 11, 1:00 PM" },
-        { level: "society_eb" as const, action: "approved" as const, timestamp: "Dec 11, 1:30 PM" },
-        { level: "society_president" as const, action: "approved" as const, timestamp: "Dec 11, 2:00 PM" },
-        { level: "faculty_admin" as const, action: "pending" as const },
-      ],
-  const handleApprove = async (id: string) => {) => {
+
+  const handleApprove = async (id: string) => {
     try {
       const response = await fetch(`${API_URL}/api/approvals/update`, {
         method: 'POST',
@@ -91,7 +52,7 @@ export default function SocietyPresidentDashboard() {
           type: 'permission',
         }),
       })
-      
+
       if (response.ok) {
         await fetchRequests() // Refresh list
       } else {
@@ -114,7 +75,7 @@ export default function SocietyPresidentDashboard() {
           type: 'permission',
         }),
       })
-      
+
       if (response.ok) {
         await fetchRequests() // Refresh list
       } else {

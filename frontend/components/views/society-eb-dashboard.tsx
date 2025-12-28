@@ -10,9 +10,18 @@ import WorkflowTracker from "@/components/workflow-tracker"
 import { getStatusLabel, getStatusColor } from "@/lib/workflow-data"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
-const SOCIETY_ID = "society-001" // Replace with actual society ID
+// Fallback ID for demo mode
+const DEFAULT_SOCIETY_ID = "7369c6c1-3881-4ef3-a17a-390b63d4895e"
 
-export default function SocietyEBDashboard() {
+interface SocietyEBDashboardProps {
+  societyId?: string
+  societyName?: string
+}
+
+export default function SocietyEBDashboard({ societyId, societyName }: SocietyEBDashboardProps) {
+  const SOCIETY_ID = societyId || DEFAULT_SOCIETY_ID
+  const displayName = societyName || "Your Society"
+
   const [screen, setScreen] = useState<"list" | "create" | "review" | "members">("list")
   const [selectedStudents, setSelectedStudents] = useState<string[]>([])
   const [pendingMembers, setPendingMembers] = useState<any[]>([])
@@ -21,16 +30,27 @@ export default function SocietyEBDashboard() {
   // Fetch pending membership requests
   useEffect(() => {
     fetchPendingMembers()
+    fetchPendingRequests()
   }, [])
 
   const fetchPendingMembers = async () => {
     try {
-      setLoading(true)
       const response = await fetch(`${API_URL}/api/eb/pending-members/${SOCIETY_ID}`)
       const data = await response.json()
       setPendingMembers(data)
     } catch (error) {
       console.error('Failed to fetch pending members:', error)
+    }
+  }
+
+  const fetchPendingRequests = async () => {
+    try {
+      setLoading(true)
+      const response = await fetch(`${API_URL}/api/approvals/eb/${SOCIETY_ID}`)
+      const data = await response.json()
+      setIncomingRequests(data)
+    } catch (error) {
+      console.error('Failed to fetch pending requests:', error)
     } finally {
       setLoading(false)
     }
@@ -39,52 +59,10 @@ export default function SocietyEBDashboard() {
   // Note: Permission requests in backend start at PENDING_PRESIDENT, not EB review
   // EB dashboard focuses on member approvals and bulk requests
   const [incomingRequests, setIncomingRequests] = useState<any[]>([])
-    {
-      id: "inc-1",
-      studentName: "Aakash Mehta",
-      rollNo: "CS21B050",
-      reason: "Lab project deadline",
-      date: "2025-12-11",
-      submittedAt: "30 min ago",
-      status: "pending_eb_review",
-      approvalHistory: [
-        { level: "student" as const, action: "approved" as const, timestamp: "Dec 11, 2:00 PM" },
-        { level: "society_eb" as const, action: "pending" as const },
-        { level: "society_president" as const, action: "pending" as const },
-        { level: "faculty_admin" as const, action: "pending" as const },
-      ],
-    },
-    {
-      id: "inc-2",
-      studentName: "Sneha Patel",
-      rollNo: "CS21B051",
-      reason: "Competition preparation",
-      date: "2025-12-11",
-      submittedAt: "1 hour ago",
-      status: "pending_eb_review",
-      approvalHistory: [
-        { level: "student" as const, action: "approved" as const, timestamp: "Dec 11, 1:30 PM" },
-        { level: "society_eb" as const, action: "pending" as const },
-        { level: "society_president" as const, action: "pending" as const },
-        { level: "faculty_admin" as const, action: "pending" as const },
-      ],
+
   const [bulkRequests, setBulkRequests] = useState<any[]>([])
-    {
-      id: "bulk-1",
-      name: "Hackathon Prep",
-      date: "2025-12-12",
-      studentCount: 15,
-      status: "pending_president_review",
-      timestamp: "2 hours ago",
-    },
-    {
-      id: "bulk-2",
-      name: "Sports Practice",
-      date: "2025-12-13",
-      studentCount: 8,
-      status: "pending_faculty_review",
-      timestamp: "1 day ago",
-  const allStudents = pendingMembers.map((m: any) => ({endingMembers.map((m: any) => ({
+
+  const allStudents = pendingMembers.map((m: any) => ({
     id: m.id,
     name: m.user?.name || "Unknown",
     rollNo: m.user?.rollNo || "N/A",
@@ -101,7 +79,7 @@ export default function SocietyEBDashboard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ membershipId, status }),
       })
-      
+
       if (response.ok) {
         await fetchPendingMembers() // Refresh list
       } else {
@@ -114,40 +92,50 @@ export default function SocietyEBDashboard() {
   }
 
   // Note: Individual permission requests skip EB and go directly to President in backend
-  const handleApproveIndividual = (id: string) => {
-    setIncomingRequests((prev) =>
-      prev.map((req) =>
-        req.id === id
-          ? {
-              ...req,
-              status: "pending_president_review",
-              approvalHistory: req.approvalHistory.map((h) =>
-                h.level === "society_eb"
-                  ? { ...h, action: "approved" as const, timestamp: new Date().toLocaleString() }
-                  : h,
-              ),
-            }
-          : req,
-      ),
-    )
+  const handleApproveIndividual = async (id: string) => {
+    try {
+      const response = await fetch(`${API_URL}/api/approvals/update`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          requestId: id,
+          status: 'PENDING_PRESIDENT',
+          type: 'permission',
+        }),
+      })
+
+      if (response.ok) {
+        await fetchPendingRequests() // Refresh list
+      } else {
+        alert('Failed to approve request')
+      }
+    } catch (error) {
+      console.error('Failed to approve:', error)
+      alert('Failed to approve request')
+    }
   }
 
-  const handleRejectIndividual = (id: string) => {
-    setIncomingRequests((prev) =>
-      prev.map((req) =>
-        req.id === id
-          ? {
-              ...req,
-              status: "rejected",
-              approvalHistory: req.approvalHistory.map((h) =>
-                h.level === "society_eb"
-                  ? { ...h, action: "rejected" as const, timestamp: new Date().toLocaleString() }
-                  : h,
-              ),
-            }
-          : req,
-      ),
-    )
+  const handleRejectIndividual = async (id: string) => {
+    try {
+      const response = await fetch(`${API_URL}/api/approvals/update`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          requestId: id,
+          status: 'REJECTED',
+          type: 'permission',
+        }),
+      })
+
+      if (response.ok) {
+        await fetchPendingRequests() // Refresh list
+      } else {
+        alert('Failed to reject request')
+      }
+    } catch (error) {
+      console.error('Failed to reject:', error)
+      alert('Failed to reject request')
+    }
   }
 
   const handleSubmitBulkRequest = (reason: string, date: string) => {
@@ -164,7 +152,7 @@ export default function SocietyEBDashboard() {
     setScreen("list")
   }
 
-  const pendingReviews = incomingRequests.filter((r) => r.status === "pending_eb_review")
+  const pendingReviews = incomingRequests.filter((r) => r.status === "PENDING_EB")
 
   if (screen === "members") {
     return (
@@ -253,17 +241,16 @@ export default function SocietyEBDashboard() {
                   <div key={req.id} className="border border-slate-200 rounded-lg p-4 space-y-3">
                     <div className="flex justify-between items-start">
                       <div>
-                        <h3 className="font-semibold">{req.studentName}</h3>
+                        <h3 className="font-semibold">{req.student?.name || "Unknown Student"}</h3>
                         <p className="text-sm text-muted-foreground">
-                          {req.rollNo} | {req.reason}
+                          {req.student?.rollNo || "N/A"} | {req.reason}
                         </p>
                         <p className="text-xs text-muted-foreground mt-1">
-                          Date: {req.date} | Submitted: {req.submittedAt}
+                          Date: {new Date(req.date).toLocaleDateString()} | Exit: {req.exitTime}
                         </p>
                       </div>
                       <Badge className="bg-yellow-100 text-yellow-800">Awaiting Your Review</Badge>
                     </div>
-                    <WorkflowTracker steps={req.approvalHistory} />
                     <div className="flex gap-2">
                       <Button
                         onClick={() => handleApproveIndividual(req.id)}

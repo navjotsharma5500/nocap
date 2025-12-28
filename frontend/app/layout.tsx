@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import Script from 'next/script'
+import InstallPrompt from '@/components/install-prompt'
+import { AuthProvider } from '@/lib/auth-context'
 import './globals.css'
 
 const _geist = Geist({ subsets: ["latin"] });
@@ -50,7 +52,10 @@ export default function RootLayout({
         <meta name="mobile-web-app-capable" content="yes" />
       </head>
       <body className={`font-sans antialiased`}>
-        {children}
+        <AuthProvider>
+          {children}
+          <InstallPrompt />
+        </AuthProvider>
         <Analytics />
         <Script id="register-sw" strategy="afterInteractive">
           {`

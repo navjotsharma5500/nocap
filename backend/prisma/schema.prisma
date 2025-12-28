@@ -15,6 +15,7 @@ enum Role {
 }
 
 enum RequestStatus {
+  PENDING_EB
   PENDING_PRESIDENT
   PENDING_FACULTY
   APPROVED
@@ -27,6 +28,11 @@ enum MembershipStatus {
   REJECTED
 }
 
+enum SocietyDomain {
+  FEST
+  SOCIETY
+}
+
 model User {
   id        String   @id @default(uuid())
   email     String   @unique
@@ -36,9 +42,11 @@ model User {
   branch    String?
   password  String
   role      Role     @default(STUDENT)
+  societyId String?  // For EB/President - links them to their society
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  society   Society? @relation("SocietyStaff", fields: [societyId], references: [id])
   memberships Membership[]
   permissionRequests PermissionRequest[]
   createdRoomBookings RoomBooking[]
@@ -46,11 +54,14 @@ model User {
 }
 
 model Society {
-  id          String   @id @default(uuid())
-  name        String   @unique
-  type        String?  // e.g., "Tech", "Cultural", "Fest"
+  id          String        @id @default(uuid())
+  name        String        @unique
+  type        String?       // e.g., "Tech", "Cultural"
+  domain      SocietyDomain @default(SOCIETY)
+  joinCode    String?       @unique // code for students to join
   description String?
   
+  staff       User[]        @relation("SocietyStaff") // EB/President users
   members     Membership[]
   permissionRequests PermissionRequest[]
   roomBookings RoomBooking[]
@@ -84,8 +95,10 @@ model PermissionRequest {
   qrToken       String?       @unique
   qrGeneratedAt DateTime?
   expiresAt     DateTime?
-  verifiedAt    DateTime?
-  verifiedBy    String?
+  verifiedAt    DateTime?     // exit scan time
+  verifiedBy    String?       // guard who verified exit
+  checkInAt     DateTime?     // return scan time
+  checkInBy     String?       // guard who verified return
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
