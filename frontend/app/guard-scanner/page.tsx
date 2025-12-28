@@ -32,7 +32,7 @@ export default function GuardScannerPage() {
       html5QrScanner.render(
         async (decodedText) => {
           console.log('QR Code scanned:', decodedText)
-          
+
           // Send to backend for verification
           try {
             const response = await fetch(`${API_URL}/api/guard/verify-qr`, {
@@ -127,29 +127,29 @@ export default function GuardScannerPage() {
                       <p className="font-bold text-green-900">{result.student?.exitTime}</p>
                     </div>
                   </div>
-                  
+
                   {result.student?.returnTime && (
                     <div className="border-t border-green-300 pt-2">
                       <p className="text-xs text-green-700 font-semibold">Expected Return</p>
                       <p className="text-sm text-green-900 font-bold">{result.student.returnTime}</p>
                     </div>
                   )}
-                  
+
                   <div className="border-t border-green-300 pt-2">
                     <p className="text-xs text-green-700 font-semibold">Reason</p>
                     <p className="text-sm text-green-900 font-medium">{result.student?.reason}</p>
                   </div>
-                  
+
                   <div className="border-t border-green-300 pt-2">
                     <p className="text-xs text-green-700 font-semibold">Society</p>
                     <p className="text-sm text-green-900 font-medium">{result.student?.society}</p>
                   </div>
-                  
+
                   <div className="bg-green-100 border border-green-300 rounded-lg p-2">
                     <p className="text-xs text-green-700 font-semibold">Valid Until</p>
                     <p className="text-sm text-green-900 font-bold">{result.student?.validUntil}</p>
                   </div>
-                  
+
                   {result.student?.verifiedAt && (
                     <div className="text-xs text-green-600 text-center">
                       First verified: {result.student.verifiedAt}
@@ -190,45 +190,15 @@ export default function GuardScannerPage() {
       </div>
     )
   }
-            ) : (
-              <>
-                <div className="w-24 h-24 bg-red-100 rounded-full flex items-center justify-center mx-auto">
-                  <XCircle className="w-16 h-16 text-red-600" />
-                </div>
-                <div className="text-center space-y-2">
-                  <h2 className="text-3xl font-black text-red-600">{titleText}</h2>
-                  <p className="text-gray-700 font-medium">{result.message}</p>
-                </div>
-                <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4 text-center">
-                  <AlertTriangle className="w-12 h-12 text-red-600 mx-auto mb-2" />
-                  <p className="text-red-800 font-bold">{actionText}</p>
-                  <p className="text-sm text-red-700 mt-2">
-                    {result.checkOutAt && result.checkInAt && (
-                      <>Pass fully used - Check-out: {result.checkOutAt}, Check-in: {result.checkInAt}</>
-                    )}
-                    {result.verifiedAt && !result.checkOutAt && `This pass was already used at: ${result.verifiedAt}`}
-                  </p>
-                </div>
-              </>
-            )}
-            <Button onClick={startScanning} className="w-full h-12 text-lg font-bold">
-              <Camera className="w-5 h-5 mr-2" />
-              Scan Another Pass
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900 p-4">
       <div className="max-w-md mx-auto">
         <div className="mb-6 flex items-center justify-between">
           <h1 className="text-3xl font-black text-white">Guard Scanner</h1>
-          <Button 
-            variant="ghost" 
-            className="text-white hover:bg-gray-800" 
+          <Button
+            variant="ghost"
+            className="text-white hover:bg-gray-800"
             onClick={() => window.history.back()}
           >
             <ArrowLeft className="w-5 h-5" />
@@ -262,8 +232,8 @@ export default function GuardScannerPage() {
                   <li>Wait for automatic scan</li>
                 </ul>
               </div>
-              <Button 
-                onClick={startScanning} 
+              <Button
+                onClick={startScanning}
                 className="w-full h-14 text-lg font-bold bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 shadow-lg"
               >
                 <Camera className="w-6 h-6 mr-2" />
@@ -287,9 +257,9 @@ export default function GuardScannerPage() {
             <div className="bg-yellow-500/20 border border-yellow-500 rounded-lg p-3 text-yellow-200 text-sm text-center">
               📷 Point camera at QR code to scan
             </div>
-            <Button 
-              onClick={stopScanning} 
-              variant="destructive" 
+            <Button
+              onClick={stopScanning}
+              variant="destructive"
               className="w-full h-12 text-lg font-bold shadow-lg"
             >
               Stop Scanning

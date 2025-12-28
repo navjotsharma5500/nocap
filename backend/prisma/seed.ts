@@ -192,23 +192,8 @@ async function main() {
   })
   console.log('✓ Seeded guard:', guard.email)
 
-  // Create sample memberships
-  await prisma.membership.upsert({
-    where: {
-      userId_societyId: {
-        userId: student.id,
-        societyId: societies[0].id, // CSS
-      },
-    },
-    update: {},
-    create: {
-      userId: student.id,
-      societyId: societies[0].id,
-      status: 'APPROVED',
-      proofUrl: 'https://example.com/proof.jpg',
-    },
-  })
-  console.log('✓ Seeded membership for student in CSS')
+  // NOTE: No pre-created memberships - students must join societies manually
+  console.log('ℹ️  No memberships seeded - students must join via society code')
 
   console.log('\n✅ Database seeding complete!')
   console.log('\n📋 Test Credentials:')

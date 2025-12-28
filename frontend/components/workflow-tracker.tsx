@@ -25,6 +25,10 @@ const levelConfig: Record<ApprovalLevel, { label: string; icon: React.ReactNode 
 }
 
 export default function WorkflowTracker({ steps, compact = false }: WorkflowTrackerProps) {
+  if (!steps || steps.length === 0) {
+    return null
+  }
+
   return (
     <div className={`flex ${compact ? "gap-1" : "gap-2"} items-center flex-wrap`}>
       {steps.map((step, index) => {
@@ -34,13 +38,12 @@ export default function WorkflowTracker({ steps, compact = false }: WorkflowTrac
         return (
           <div key={step.level} className="flex items-center gap-1">
             <div
-              className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium border ${
-                step.action === "approved"
+              className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium border ${step.action === "approved"
                   ? "bg-green-50 text-green-700 border-green-200"
                   : step.action === "rejected"
                     ? "bg-red-50 text-red-700 border-red-200"
                     : "bg-slate-50 text-slate-500 border-slate-200"
-              }`}
+                }`}
             >
               {step.action === "approved" ? (
                 <Check className="w-3 h-3" />

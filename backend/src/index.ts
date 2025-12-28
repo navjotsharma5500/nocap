@@ -147,6 +147,31 @@ app.get('/api/societies', async (req, res) => {
   res.json(societies);
 });
 
+// Get student's society memberships
+app.get('/api/student/:studentId/memberships', async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    const memberships = await prisma.membership.findMany({
+      where: { userId: studentId },
+      include: { society: true },
+      orderBy: { createdAt: 'desc' },
+    });
+    
+    // Check if student has any approved membership
+    const approvedMembership = memberships.find(m => m.status === 'APPROVED');
+    
+    res.json({
+      hasMembership: memberships.length > 0,
+      hasApprovedMembership: !!approvedMembership,
+      memberships,
+      activeSociety: approvedMembership?.society || null,
+    });
+  } catch (error) {
+    console.error('Get memberships error:', error);
+    res.status(500).json({ error: 'Failed to get memberships' });
+  }
+});
+
 app.post('/api/societies/join', async (req, res) => {
   try {
     const { userId, societyId, proofUrl } = req.body;
@@ -155,6 +180,42 @@ app.post('/api/societies/join', async (req, res) => {
     });
     res.json(membership);
   } catch (error) {
+    res.status(400).json({ error: 'Join request failed' });
+  }
+});
+
+// Join society by code
+app.post('/api/societies/join-by-code', async (req, res) => {
+  try {
+    const { userId, joinCode } = req.body;
+    
+    // Find society by join code
+    const society = await prisma.society.findFirst({
+      where: { joinCode: joinCode.toUpperCase() },
+    });
+    
+    if (!society) {
+      return res.status(404).json({ error: 'Invalid society code' });
+    }
+    
+    // Check if already a member
+    const existing = await prisma.membership.findUnique({
+      where: { userId_societyId: { userId, societyId: society.id } },
+    });
+    
+    if (existing) {
+      return res.status(400).json({ error: 'Already a member or pending approval' });
+    }
+    
+    // Create membership request
+    const membership = await prisma.membership.create({
+      data: { userId, societyId: society.id, status: 'PENDING' },
+      include: { society: true },
+    });
+    
+    res.json(membership);
+  } catch (error) {
+    console.error('Join by code error:', error);
     res.status(400).json({ error: 'Join request failed' });
   }
 });

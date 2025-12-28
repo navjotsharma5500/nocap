@@ -5,7 +5,7 @@ import { CheckCircle, XCircle, Inbox, ArrowRight, Users } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import WorkflowTracker from "@/components/workflow-tracker"
+import { Input } from "@/components/ui/input"
 import { getStatusLabel, getStatusColor } from "@/lib/workflow-data"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
@@ -176,7 +176,7 @@ export default function SocietyPresidentDashboard({ societyId, societyName }: So
                     </div>
                     <Badge className="bg-orange-100 text-orange-800">Awaiting Your Review</Badge>
                   </div>
-                  <WorkflowTracker steps={req.approvalHistory} />
+                  {/* Workflow removed */}
                   <div className="flex gap-2">
                     <Button
                       onClick={() => handleApprove(req.id)}
@@ -215,7 +215,7 @@ export default function SocietyPresidentDashboard({ societyId, societyName }: So
                     </div>
                     <Badge className={getStatusColor(req.status as any)}>{getStatusLabel(req.status as any)}</Badge>
                   </div>
-                  <WorkflowTracker steps={req.approvalHistory} compact />
+                  {/* Workflow removed */}
                 </div>
               ))}
             </CardContent>
