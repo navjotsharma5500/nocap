@@ -849,6 +849,502 @@ app.get('/api/guard/stats', async (req, res) => {
 });
 
 
+// ============ FLAGGING SYSTEM ============
+
+// DOSA - Flag a student (HARD flag)
+app.post('/api/admin/flag-student', async (req, res) => {
+  try {
+    const { studentId, reason, flaggedBy } = req.body;
+
+    if (!studentId || !reason) {
+      return res.status(400).json({ error: 'studentId and reason are required' });
+    }
+
+    const student = await prisma.user.update({
+      where: { id: studentId },
+      data: {
+        isFlagged: true,
+        flagType: 'HARD',
+        flagReason: reason,
+        flaggedBy: flaggedBy || 'DOSA',
+        flaggedAt: new Date(),
+      },
+    });
+
+    // Find student's society memberships to notify EBs
+    const memberships = await prisma.membership.findMany({
+      where: { userId: studentId, status: 'APPROVED' },
+      include: { society: { include: { staff: true } } },
+    });
+
+    // Create notifications for all EBs of student's societies
+    for (const membership of memberships) {
+      const ebUsers = membership.society.staff.filter(s => s.role === 'SOCIETY_EB');
+      for (const eb of ebUsers) {
+        await prisma.notification.create({
+          data: {
+            userId: eb.id,
+            type: 'MEMBER_FLAGGED',
+            title: 'Member Flagged by DOSA',
+            message: `${student.name} (${student.rollNo}) has been flagged. Reason: ${reason}`,
+            metadata: { studentId, studentName: student.name, flagType: 'HARD' },
+          },
+        });
+      }
+    }
+
+    res.json({ success: true, student });
+  } catch (error) {
+    console.error('Flag student error:', error);
+    res.status(500).json({ error: 'Failed to flag student' });
+  }
+});
+
+// DOSA - De-flag a student
+app.post('/api/admin/deflag-student', async (req, res) => {
+  try {
+    const { studentId } = req.body;
+
+    const student = await prisma.user.update({
+      where: { id: studentId },
+      data: {
+        isFlagged: false,
+        flagType: null,
+        flagReason: null,
+        flaggedBy: null,
+        flaggedAt: null,
+      },
+    });
+
+    res.json({ success: true, student });
+  } catch (error) {
+    console.error('Deflag student error:', error);
+    res.status(500).json({ error: 'Failed to de-flag student' });
+  }
+});
+
+// EB - Soft flag a member
+app.post('/api/eb/soft-flag-member', async (req, res) => {
+  try {
+    const { studentId, reason, flaggedBy, societyId } = req.body;
+
+    const student = await prisma.user.update({
+      where: { id: studentId },
+      data: {
+        isFlagged: true,
+        flagType: 'SOFT',
+        flagReason: reason,
+        flaggedBy: flaggedBy || 'Society EB',
+        flaggedAt: new Date(),
+      },
+    });
+
+    res.json({ success: true, student });
+  } catch (error) {
+    console.error('Soft flag error:', error);
+    res.status(500).json({ error: 'Failed to flag member' });
+  }
+});
+
+// EB - Request re-evaluation for flagged member
+app.post('/api/eb/request-re-evaluation', async (req, res) => {
+  try {
+    const { studentId, reason, requestedBy, societyId } = req.body;
+
+    const student = await prisma.user.findUnique({ where: { id: studentId } });
+    if (!student) {
+      return res.status(404).json({ error: 'Student not found' });
+    }
+
+    // Find all admin users
+    const admins = await prisma.user.findMany({ where: { role: 'FACULTY_ADMIN' } });
+
+    // Create notification for admins
+    for (const admin of admins) {
+      await prisma.notification.create({
+        data: {
+          userId: admin.id,
+          type: 'RE_EVAL_REQUESTED',
+          title: 'Re-evaluation Request',
+          message: `EB requests re-evaluation for ${student.name} (${student.rollNo}). Reason: ${reason}`,
+          metadata: { studentId, studentName: student.name, requestedBy, societyId },
+        },
+      });
+    }
+
+    res.json({ success: true, message: 'Re-evaluation request sent to DOSA' });
+  } catch (error) {
+    console.error('Re-evaluation request error:', error);
+    res.status(500).json({ error: 'Failed to request re-evaluation' });
+  }
+});
+
+// Get flagged members for a society
+app.get('/api/eb/flagged-members/:societyId', async (req, res) => {
+  try {
+    const { societyId } = req.params;
+
+    const memberships = await prisma.membership.findMany({
+      where: { societyId, status: 'APPROVED' },
+      include: { user: true },
+    });
+
+    const flaggedMembers = memberships
+      .filter(m => m.user.isFlagged)
+      .map(m => ({
+        id: m.user.id,
+        name: m.user.name,
+        rollNo: m.user.rollNo,
+        flagType: m.user.flagType,
+        flagReason: m.user.flagReason,
+        flaggedBy: m.user.flaggedBy,
+        flaggedAt: m.user.flaggedAt,
+      }));
+
+    res.json(flaggedMembers);
+  } catch (error) {
+    console.error('Get flagged members error:', error);
+    res.status(500).json({ error: 'Failed to get flagged members' });
+  }
+});
+
+// ============ NOTIFICATIONS ============
+
+// Get notifications for user
+app.get('/api/notifications/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const notifications = await prisma.notification.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
+    res.json(notifications);
+  } catch (error) {
+    console.error('Get notifications error:', error);
+    res.status(500).json({ error: 'Failed to get notifications' });
+  }
+});
+
+// Mark notification as read
+app.post('/api/notifications/mark-read', async (req, res) => {
+  try {
+    const { notificationId } = req.body;
+    await prisma.notification.update({
+      where: { id: notificationId },
+      data: { isRead: true },
+    });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Mark read error:', error);
+    res.status(500).json({ error: 'Failed to mark notification as read' });
+  }
+});
+
+// ============ BULK REQUESTS ============
+
+// EB - Create bulk permission request
+app.post('/api/eb/create-bulk-request', async (req, res) => {
+  try {
+    const { societyId, createdBy, reason, date, exitTime, returnTime, documentUrl, studentIds } = req.body;
+
+    if (!societyId || !reason || !date || !exitTime || !studentIds || studentIds.length === 0) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    // Create bulk request
+    const bulkRequest = await prisma.bulkRequest.create({
+      data: {
+        societyId,
+        createdBy,
+        reason,
+        date: new Date(date),
+        exitTime,
+        returnTime,
+        documentUrl,
+        status: 'PENDING_PRESIDENT',
+      },
+    });
+
+    // Create individual permission requests for each student
+    for (const studentId of studentIds) {
+      await prisma.permissionRequest.create({
+        data: {
+          studentId,
+          societyId,
+          reason,
+          date: new Date(date),
+          exitTime,
+          returnTime,
+          status: 'PENDING_PRESIDENT',
+          bulkRequestId: bulkRequest.id,
+        },
+      });
+    }
+
+    res.json({ success: true, bulkRequest });
+  } catch (error) {
+    console.error('Create bulk request error:', error);
+    res.status(500).json({ error: 'Failed to create bulk request' });
+  }
+});
+
+// President - Get pending bulk requests
+app.get('/api/president/pending-bulk-requests/:societyId', async (req, res) => {
+  try {
+    const { societyId } = req.params;
+
+    const bulkRequests = await prisma.bulkRequest.findMany({
+      where: { societyId, status: 'PENDING_PRESIDENT' },
+      include: {
+        society: true,
+        permissionRequests: { include: { student: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    res.json(bulkRequests);
+  } catch (error) {
+    console.error('Get bulk requests error:', error);
+    res.status(500).json({ error: 'Failed to get bulk requests' });
+  }
+});
+
+// President - Approve bulk request
+app.post('/api/president/approve-bulk-request', async (req, res) => {
+  try {
+    const { bulkRequestId, action } = req.body; // action: 'approve' | 'reject'
+
+    const newStatus = action === 'approve' ? 'PENDING_FACULTY' : 'REJECTED';
+
+    // Update bulk request
+    await prisma.bulkRequest.update({
+      where: { id: bulkRequestId },
+      data: { status: newStatus },
+    });
+
+    // Update all associated permission requests
+    await prisma.permissionRequest.updateMany({
+      where: { bulkRequestId },
+      data: { status: newStatus },
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Approve bulk request error:', error);
+    res.status(500).json({ error: 'Failed to process bulk request' });
+  }
+});
+
+// ============ ACADEMIC PERMISSIONS ============
+
+// Admin - Create academic permission
+app.post('/api/admin/academic-permissions', async (req, res) => {
+  try {
+    const { studentId, reason, date, department, exitTime, returnTime } = req.body;
+
+    const permission = await prisma.academicPermission.create({
+      data: {
+        studentId,
+        reason,
+        date: new Date(date),
+        department,
+        exitTime,
+        returnTime,
+        status: 'PENDING_FACULTY',
+      },
+    });
+
+    res.json(permission);
+  } catch (error) {
+    console.error('Create academic permission error:', error);
+    res.status(500).json({ error: 'Failed to create academic permission' });
+  }
+});
+
+// Admin - Get all academic permissions
+app.get('/api/admin/academic-permissions', async (req, res) => {
+  try {
+    const permissions = await prisma.academicPermission.findMany({
+      include: { student: true },
+      orderBy: { createdAt: 'desc' },
+    });
+    res.json(permissions);
+  } catch (error) {
+    console.error('Get academic permissions error:', error);
+    res.status(500).json({ error: 'Failed to get academic permissions' });
+  }
+});
+
+// Admin - Approve academic permission (generates QR)
+app.post('/api/admin/academic-permissions/approve', async (req, res) => {
+  try {
+    const { permissionId } = req.body;
+
+    const permission = await prisma.academicPermission.findUnique({
+      where: { id: permissionId },
+      include: { student: true },
+    });
+
+    if (!permission) {
+      return res.status(404).json({ error: 'Permission not found' });
+    }
+
+    // Generate QR token
+    const qrToken = jwt.sign(
+      {
+        permissionId: permission.id,
+        studentId: permission.studentId,
+        type: 'ACADEMIC',
+        date: permission.date.toISOString(),
+        exp: Math.floor(Date.now() / 1000) + (24 * 60 * 60),
+      },
+      JWT_SECRET
+    );
+
+    const expiresAt = new Date(permission.date);
+    expiresAt.setHours(26, 0, 0, 0);
+
+    await prisma.academicPermission.update({
+      where: { id: permissionId },
+      data: {
+        status: 'APPROVED',
+        qrToken,
+        qrGeneratedAt: new Date(),
+        expiresAt,
+      },
+    });
+
+    res.json({ success: true, qrToken });
+  } catch (error) {
+    console.error('Approve academic permission error:', error);
+    res.status(500).json({ error: 'Failed to approve academic permission' });
+  }
+});
+
+// ============ EB STATS ============
+
+// Get society stats for EB dashboard
+app.get('/api/eb/society-stats/:societyId', async (req, res) => {
+  try {
+    const { societyId } = req.params;
+
+    // Total members
+    const totalMembers = await prisma.membership.count({
+      where: { societyId, status: 'APPROVED' },
+    });
+
+    // Flagged members
+    const memberships = await prisma.membership.findMany({
+      where: { societyId, status: 'APPROVED' },
+      include: { user: true },
+    });
+    const flaggedMembers = memberships.filter(m => m.user.isFlagged).length;
+
+    // Members out on night permission
+    const membersOut = await prisma.permissionRequest.count({
+      where: {
+        societyId,
+        status: 'APPROVED',
+        verifiedAt: { not: null },
+        checkInAt: null,
+      },
+    });
+
+    res.json({
+      totalMembers,
+      flaggedMembers,
+      membersOut,
+    });
+  } catch (error) {
+    console.error('EB stats error:', error);
+    res.status(500).json({ error: 'Failed to get stats' });
+  }
+});
+
+// Get approved members for a society (for EB bulk selection)
+app.get('/api/eb/approved-members/:societyId', async (req, res) => {
+  try {
+    const { societyId } = req.params;
+
+    const memberships = await prisma.membership.findMany({
+      where: { societyId, status: 'APPROVED' },
+      include: { user: true },
+    });
+
+    const members = memberships.map(m => ({
+      id: m.user.id,
+      name: m.user.name,
+      rollNo: m.user.rollNo,
+      branch: m.user.branch,
+      isFlagged: m.user.isFlagged,
+      flagType: m.user.flagType,
+    }));
+
+    res.json(members);
+  } catch (error) {
+    console.error('Get approved members error:', error);
+    res.status(500).json({ error: 'Failed to get members' });
+  }
+});
+
+// ============ ADMIN PERMISSION LISTS ============
+
+// Get permission lists by category (society/fest/academic)
+app.get('/api/admin/permission-lists', async (req, res) => {
+  try {
+    // Society permissions (domain = SOCIETY)
+    const societyPermissions = await prisma.permissionRequest.findMany({
+      where: { society: { domain: 'SOCIETY' } },
+      include: { student: true, society: true },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+
+    // Fest permissions (domain = FEST)
+    const festPermissions = await prisma.permissionRequest.findMany({
+      where: { society: { domain: 'FEST' } },
+      include: { student: true, society: true },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+
+    // Academic permissions
+    const academicPermissions = await prisma.academicPermission.findMany({
+      include: { student: true },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+
+    // All students (for flagging/search)
+    const allStudents = await prisma.user.findMany({
+      where: { role: 'STUDENT' },
+      select: {
+        id: true,
+        name: true,
+        rollNo: true,
+        branch: true,
+        year: true,
+        isFlagged: true,
+        flagType: true,
+        flagReason: true,
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    res.json({
+      societyPermissions,
+      festPermissions,
+      academicPermissions,
+      allStudents,
+    });
+  } catch (error) {
+    console.error('Permission lists error:', error);
+    res.status(500).json({ error: 'Failed to get permission lists' });
+  }
+});
+
+
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
 });

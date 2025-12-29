@@ -1,13 +1,13 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { QrCode, Users, Send, CheckCircle, Clock, Camera, ArrowRight, RefreshCw, Plus } from "lucide-react"
+import { QrCode, Users, CheckCircle, Clock, Camera, RefreshCw, Plus, Info } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
 import { Scanner } from "@yudiel/react-qr-scanner"
+import QRCode from 'qrcode'
 import { getStatusLabel, getStatusColor } from "@/lib/workflow-data"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
@@ -35,7 +35,7 @@ interface MembershipData {
 }
 
 export default function StudentView({ studentId }: StudentViewProps) {
-  const [screen, setScreen] = useState<"loading" | "join" | "pending" | "dashboard" | "scanner" | "request" | "pass" | "join-more">("loading")
+  const [screen, setScreen] = useState<"loading" | "join" | "pending" | "dashboard" | "scanner" | "pass" | "join-more">("loading")
   const [membershipData, setMembershipData] = useState<MembershipData | null>(null)
   const [joinCode, setJoinCode] = useState("")
   const [joinError, setJoinError] = useState("")
@@ -43,6 +43,7 @@ export default function StudentView({ studentId }: StudentViewProps) {
   const [requests, setRequests] = useState<any[]>([])
   const [activePass, setActivePass] = useState<any>(null)
   const [scannedData, setScannedData] = useState<string | null>(null)
+  const [qrDataUrl, setQrDataUrl] = useState<string>("")
 
   // Fetch membership status on mount
   useEffect(() => {
@@ -50,6 +51,30 @@ export default function StudentView({ studentId }: StudentViewProps) {
       fetchMembershipStatus()
     }
   }, [studentId])
+
+  // Generate QR code when active pass changes
+  useEffect(() => {
+    if (activePass?.qrToken) {
+      generateQrCode(activePass.qrToken)
+    }
+  }, [activePass])
+
+  const generateQrCode = async (token: string) => {
+    try {
+      const url = await QRCode.toDataURL(token, {
+        width: 256,
+        margin: 2,
+        color: {
+          dark: '#000000',
+          light: '#ffffff',
+        },
+        errorCorrectionLevel: 'H',
+      })
+      setQrDataUrl(url)
+    } catch (error) {
+      console.error('QR generation error:', error)
+    }
+  }
 
   const fetchMembershipStatus = async () => {
     try {
@@ -124,35 +149,6 @@ export default function StudentView({ studentId }: StudentViewProps) {
       setJoinError("Network error. Please try again.")
     } finally {
       setJoinLoading(false)
-    }
-  }
-
-  const handleNewRequest = async (reason: string, date: string) => {
-    if (!studentId || !membershipData?.activeSociety) return
-
-    try {
-      const res = await fetch(`${API_URL}/api/permissions`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          studentId,
-          societyId: membershipData.activeSociety.id,
-          reason,
-          date,
-          exitTime: "20:00",
-          returnTime: "23:00",
-        }),
-      })
-
-      if (res.ok) {
-        await fetchRequests(membershipData.activeSociety.id)
-        setScreen("dashboard")
-      } else {
-        const error = await res.json()
-        alert(`Failed: ${error.error || "Unknown error"}`)
-      }
-    } catch (error) {
-      alert("Failed to submit request")
     }
   }
 
@@ -246,7 +242,7 @@ export default function StudentView({ studentId }: StudentViewProps) {
 
               <p className="text-sm text-muted-foreground">
                 The society EB will review your request and approve your membership.
-                Once approved, you'll be able to request night permissions.
+                Once approved, you'll be able to view your night permission passes.
               </p>
 
               <Button
@@ -292,10 +288,10 @@ export default function StudentView({ studentId }: StudentViewProps) {
                 <p className="text-sm font-medium">Scanned Data:</p>
                 <p className="text-xs text-muted-foreground break-all mt-1">{scannedData}</p>
                 <Button
-                  onClick={() => { setScreen("request"); setScannedData(null); }}
+                  onClick={() => { setScreen("dashboard"); setScannedData(null); }}
                   className="w-full mt-4"
                 >
-                  Request Night Permission
+                  Done
                 </Button>
               </CardContent>
             </Card>
@@ -305,69 +301,25 @@ export default function StudentView({ studentId }: StudentViewProps) {
     )
   }
 
-  // REQUEST FORM SCREEN
-  if (screen === "request") {
-    return (
-      <div className="min-h-screen bg-background p-4 md:p-8">
-        <div className="max-w-md mx-auto">
-          <Button onClick={() => setScreen("dashboard")} variant="outline" className="mb-6">
-            ← Back
-          </Button>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Send className="w-5 h-5" />
-                Request Night Permission
-              </CardTitle>
-              <CardDescription>
-                Society: {membershipData?.activeSociety?.name}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="bg-muted p-3 rounded-lg text-xs">
-                <p className="font-medium mb-1">Approval Flow:</p>
-                <p>You → EB → President → Faculty Admin → QR Pass</p>
-              </div>
-
-              <div>
-                <label className="text-sm font-medium mb-2 block">Reason</label>
-                <Textarea placeholder="e.g., Library project work, Lab assignment..." id="reason" rows={3} />
-              </div>
-
-              <div>
-                <label className="text-sm font-medium mb-2 block">Date</label>
-                <Input type="date" id="date" />
-              </div>
-
-              <Button
-                onClick={() => {
-                  const reason = (document.getElementById("reason") as HTMLTextAreaElement)?.value
-                  const date = (document.getElementById("date") as HTMLInputElement)?.value
-                  if (reason && date) handleNewRequest(reason, date)
-                }}
-                className="w-full"
-              >
-                Submit Request
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    )
-  }
-
   // PASS SCREEN (with QR)
   if (screen === "pass" && activePass) {
     return (
-      <div className="min-h-screen bg-black p-4 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 p-4 flex items-center justify-center">
         <div className="max-w-sm w-full">
-          <Card className="border-2 border-white">
+          <Card className="border-2 border-green-500 shadow-2xl">
             <CardContent className="pt-6 text-center space-y-4">
-              <div className="bg-white p-4 rounded-xl inline-block">
-                <QrCode className="w-32 h-32 text-black" />
+              {/* QR Code */}
+              <div className="bg-white p-4 rounded-xl inline-block shadow-inner">
+                {qrDataUrl ? (
+                  <img src={qrDataUrl} alt="QR Code" className="w-48 h-48" />
+                ) : (
+                  <div className="w-48 h-48 flex items-center justify-center">
+                    <QrCode className="w-32 h-32 text-black animate-pulse" />
+                  </div>
+                )}
               </div>
 
+              {/* Student Details */}
               <div className="text-left space-y-2 border-t pt-4">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground text-sm">Name</span>
@@ -383,11 +335,15 @@ export default function StudentView({ studentId }: StudentViewProps) {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground text-sm">Reason</span>
-                  <span className="font-medium">{activePass.reason}</span>
+                  <span className="font-medium text-right max-w-[180px] truncate">{activePass.reason}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground text-sm">Exit Time</span>
                   <span className="font-medium">{activePass.exitTime}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground text-sm">Return Time</span>
+                  <span className="font-medium">{activePass.returnTime || 'N/A'}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground text-sm">Valid Until</span>
@@ -395,8 +351,8 @@ export default function StudentView({ studentId }: StudentViewProps) {
                 </div>
               </div>
 
-              <Badge className="bg-white text-black">
-                ✓ APPROVED
+              <Badge className="bg-green-600 text-white text-lg px-4 py-1">
+                APPROVED
               </Badge>
 
               <Button onClick={() => setScreen("dashboard")} variant="outline" className="w-full">
@@ -494,24 +450,40 @@ export default function StudentView({ studentId }: StudentViewProps) {
 
         {/* Approved Pass Banner */}
         {activePass && (
-          <Card className="border-2 border-foreground">
+          <Card className="border-2 border-green-500 bg-green-50">
             <CardContent className="pt-6">
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-foreground rounded-full flex items-center justify-center">
-                  <CheckCircle className="w-6 h-6 text-background" />
+                <div className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center">
+                  <CheckCircle className="w-6 h-6 text-white" />
                 </div>
                 <div className="flex-1">
                   <h3 className="font-bold">Pass Approved!</h3>
                   <p className="text-sm text-muted-foreground">Tap to view your QR code</p>
                 </div>
               </div>
-              <Button onClick={() => setScreen("pass")} className="w-full mt-4 gap-2">
+              <Button onClick={() => setScreen("pass")} className="w-full mt-4 gap-2 bg-green-600 hover:bg-green-700">
                 <QrCode className="w-4 h-4" />
                 Show Pass
               </Button>
             </CardContent>
           </Card>
         )}
+
+        {/* Info Card - How Permissions Work */}
+        <Card className="bg-blue-50 border-blue-200">
+          <CardContent className="pt-4 pb-4">
+            <div className="flex items-start gap-3">
+              <Info className="w-5 h-5 text-blue-600 mt-0.5" />
+              <div>
+                <h4 className="font-medium text-blue-900">How Night Permissions Work</h4>
+                <p className="text-sm text-blue-700 mt-1">
+                  Your Society EB will select students for night permissions based on society activities.
+                  Once approved through the chain (EB → President → DOSA), you'll receive your QR pass here.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Action Buttons */}
         <div className="grid gap-3">
@@ -523,20 +495,8 @@ export default function StudentView({ studentId }: StudentViewProps) {
             <Camera className="w-5 h-5" />
             <div className="text-left">
               <div className="font-medium">Scan Hostel QR</div>
-              <div className="text-xs text-muted-foreground">Required before requesting permission</div>
+              <div className="text-xs text-muted-foreground">For hostel check-in/out</div>
             </div>
-          </Button>
-
-          <Button
-            onClick={() => setScreen("request")}
-            className="h-16 gap-3 justify-start"
-          >
-            <Send className="w-5 h-5" />
-            <div className="text-left">
-              <div className="font-medium">Request Night Permission</div>
-              <div className="text-xs opacity-80">Submit a new request</div>
-            </div>
-            <ArrowRight className="w-4 h-4 ml-auto" />
           </Button>
 
           <Button
@@ -556,7 +516,7 @@ export default function StudentView({ studentId }: StudentViewProps) {
         {requests.length > 0 && (
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">My Requests</CardTitle>
+              <CardTitle className="text-lg">My Permissions</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               {requests.slice(0, 5).map((req) => (

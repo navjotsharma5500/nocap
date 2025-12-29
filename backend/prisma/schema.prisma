@@ -33,6 +33,11 @@ enum SocietyDomain {
   SOCIETY
 }
 
+enum FlagType {
+  HARD
+  SOFT
+}
+
 model User {
   id        String   @id @default(uuid())
   email     String   @unique
@@ -43,6 +48,14 @@ model User {
   password  String
   role      Role     @default(STUDENT)
   societyId String?  // For EB/President - links them to their society
+  
+  // Flagging fields
+  isFlagged     Boolean   @default(false)
+  flagType      FlagType?
+  flagReason    String?
+  flaggedBy     String?
+  flaggedAt     DateTime?
+  
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -51,6 +64,8 @@ model User {
   permissionRequests PermissionRequest[]
   createdRoomBookings RoomBooking[]
   createdVenueBookings VenueBooking[]
+  notifications Notification[]
+  academicPermissions AcademicPermission[]
 }
 
 model Society {
@@ -66,6 +81,7 @@ model Society {
   permissionRequests PermissionRequest[]
   roomBookings RoomBooking[]
   venueBookings VenueBooking[]
+  bulkRequests BulkRequest[]
 }
 
 model Membership {
@@ -99,11 +115,65 @@ model PermissionRequest {
   verifiedBy    String?       // guard who verified exit
   checkInAt     DateTime?     // return scan time
   checkInBy     String?       // guard who verified return
+  bulkRequestId String?       // if created via bulk request
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
   student User    @relation(fields: [studentId], references: [id])
   society Society @relation(fields: [societyId], references: [id])
+  bulkRequest BulkRequest? @relation(fields: [bulkRequestId], references: [id])
+}
+
+model BulkRequest {
+  id            String        @id @default(uuid())
+  societyId     String
+  createdBy     String        // EB user ID
+  reason        String
+  date          DateTime
+  exitTime      String
+  returnTime    String?
+  documentUrl   String?       // attachment URL
+  status        RequestStatus @default(PENDING_PRESIDENT)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  society Society @relation(fields: [societyId], references: [id])
+  permissionRequests PermissionRequest[]
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String   // recipient
+  type      String   // MEMBER_FLAGGED, RE_EVAL_REQUESTED, BULK_APPROVED, etc.
+  title     String
+  message   String
+  isRead    Boolean  @default(false)
+  metadata  Json?    // additional data like studentId, societyId, etc.
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model AcademicPermission {
+  id          String        @id @default(uuid())
+  studentId   String
+  reason      String
+  date        DateTime
+  department  String?
+  exitTime    String
+  returnTime  String?
+  status      RequestStatus @default(PENDING_FACULTY)
+  qrToken     String?       @unique
+  qrGeneratedAt DateTime?
+  expiresAt   DateTime?
+  verifiedAt  DateTime?
+  verifiedBy  String?
+  checkInAt   DateTime?
+  checkInBy   String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  student User @relation(fields: [studentId], references: [id])
 }
 
 model RoomBooking {
@@ -140,3 +210,4 @@ model VenueBooking {
   society Society @relation(fields: [societyId], references: [id])
   creator User    @relation(fields: [createdBy], references: [id])
 }
+
