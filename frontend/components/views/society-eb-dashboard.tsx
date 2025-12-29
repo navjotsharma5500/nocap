@@ -50,7 +50,7 @@ export default function SocietyEBDashboard({ societyId, societyName, userId }: S
   const SOCIETY_ID = societyId || DEFAULT_SOCIETY_ID
   const displayName = societyName || "Your Society"
 
-  const [screen, setScreen] = useState<"list" | "create" | "review" | "members" | "flagged">("list")
+  const [screen, setScreen] = useState<"list" | "create" | "review" | "members" | "flagged" | "activations">("list")
   const [selectedStudents, setSelectedStudents] = useState<string[]>([])
   const [pendingMembers, setPendingMembers] = useState<any[]>([])
   const [approvedMembers, setApprovedMembers] = useState<Member[]>([])
@@ -65,6 +65,7 @@ export default function SocietyEBDashboard({ societyId, societyName, userId }: S
   const [softFlagStudent, setSoftFlagStudent] = useState<Member | null>(null)
   const [softFlagReason, setSoftFlagReason] = useState("")
   const [documentUrl, setDocumentUrl] = useState("")
+  const [pendingActivations, setPendingActivations] = useState<any[]>([])
 
   // Fetch data on mount
   useEffect(() => {
@@ -81,6 +82,7 @@ export default function SocietyEBDashboard({ societyId, societyName, userId }: S
         fetchStats(),
         fetchFlaggedMembers(),
         fetchNotifications(),
+        fetchPendingActivations(),
       ])
     } catch (error) {
       console.error('Failed to fetch data:', error)
@@ -158,6 +160,38 @@ export default function SocietyEBDashboard({ societyId, societyName, userId }: S
     }
   }
 
+  const fetchPendingActivations = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/eb/pending-activations/${SOCIETY_ID}`)
+      if (response.ok) {
+        const data = await response.json()
+        setPendingActivations(data)
+      }
+    } catch (error) {
+      console.error('Failed to fetch pending activations:', error)
+    }
+  }
+
+  const handleApproveActivation = async (permissionId: string, action: 'approve' | 'reject') => {
+    try {
+      const response = await fetch(`${API_URL}/api/eb/approve-activation`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ permissionId, action }),
+      })
+
+      if (response.ok) {
+        await fetchPendingActivations()
+        alert(action === 'approve' ? 'Permission activated! Student is now live.' : 'Activation rejected')
+      } else {
+        alert('Failed to process activation')
+      }
+    } catch (error) {
+      console.error('Approve activation error:', error)
+      alert('Failed to process activation')
+    }
+  }
+
   const [incomingRequests, setIncomingRequests] = useState<any[]>([])
   const [bulkRequests, setBulkRequests] = useState<any[]>([])
 
@@ -230,16 +264,17 @@ export default function SocietyEBDashboard({ societyId, societyName, userId }: S
     }
   }
 
-  const handleSubmitBulkRequest = async (reason: string, date: string, exitTime: string, returnTime: string) => {
+  const handleSubmitBulkRequest = async (reason: string, startDate: string, endDate: string, exitTime: string, returnTime: string) => {
     try {
-      const response = await fetch(`${API_URL}/api/eb/create-bulk-request`, {
+      const response = await fetch(`${API_URL}/api/eb/create-bulk-request-v2`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           societyId: SOCIETY_ID,
           createdBy: userId || 'eb-user',
           reason,
-          date,
+          startDate,
+          endDate: endDate || startDate, // If no end date, use start date
           exitTime,
           returnTime,
           documentUrl: documentUrl || null,
@@ -408,6 +443,71 @@ export default function SocietyEBDashboard({ societyId, societyName, userId }: S
     )
   }
 
+  // Pending Activations Screen
+  if (screen === "activations") {
+    return (
+      <div className="min-h-screen bg-slate-50 p-4 md:p-8">
+        <div className="max-w-3xl mx-auto">
+          <Button variant="outline" onClick={() => setScreen("list")} className="mb-6">
+            ← Back to Dashboard
+          </Button>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Bell className="w-5 h-5 text-yellow-600" />
+                Pending Activation Requests
+              </CardTitle>
+              <CardDescription>
+                Students requesting to activate their permission without hostel scan
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {pendingActivations.length === 0 ? (
+                <p className="text-center text-muted-foreground py-8">No pending activation requests</p>
+              ) : (
+                pendingActivations.map((perm) => (
+                  <div key={perm.id} className="border border-yellow-200 rounded-lg p-4 bg-yellow-50 space-y-3">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h3 className="font-semibold">{perm.student?.name}</h3>
+                        <p className="text-sm text-muted-foreground">{perm.student?.rollNo}</p>
+                        <p className="text-sm mt-1">{perm.reason}</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Date: {new Date(perm.date).toLocaleDateString()} | Exit: {perm.exitTime} | Return: {perm.returnTime || 'N/A'}
+                        </p>
+                      </div>
+                      <Badge variant="outline" className="text-yellow-600 border-yellow-600">
+                        Pending Activation
+                      </Badge>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={() => handleApproveActivation(perm.id, 'approve')}
+                        className="flex-1 gap-2 bg-green-600 hover:bg-green-700"
+                      >
+                        <CheckCircle className="w-4 h-4" />
+                        Approve (Go Live)
+                      </Button>
+                      <Button
+                        onClick={() => handleApproveActivation(perm.id, 'reject')}
+                        variant="destructive"
+                        className="flex-1 gap-2"
+                      >
+                        <XCircle className="w-4 h-4" />
+                        Reject
+                      </Button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    )
+  }
+
   if (screen === "members") {
     return (
       <div className="min-h-screen bg-slate-50 p-4 md:p-8">
@@ -559,18 +659,24 @@ export default function SocietyEBDashboard({ societyId, societyName, userId }: S
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-sm font-medium mb-2 block">Date</label>
-                  <Input type="date" id="date" />
+                  <label className="text-sm font-medium mb-2 block">Start Date</label>
+                  <Input type="date" id="startDate" />
                 </div>
+                <div>
+                  <label className="text-sm font-medium mb-2 block">End Date (optional)</label>
+                  <Input type="date" id="endDate" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium mb-2 block">Exit Time</label>
                   <Input type="time" id="exitTime" defaultValue="20:00" />
                 </div>
-              </div>
-
-              <div>
-                <label className="text-sm font-medium mb-2 block">Return Time</label>
-                <Input type="time" id="returnTime" defaultValue="23:00" />
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Return Time</label>
+                  <Input type="time" id="returnTime" defaultValue="23:00" />
+                </div>
               </div>
 
               {/* Document Upload */}
@@ -623,7 +729,8 @@ export default function SocietyEBDashboard({ societyId, societyName, userId }: S
               <Button
                 onClick={() => {
                   const reason = (document.getElementById("reason") as HTMLInputElement)?.value
-                  const date = (document.getElementById("date") as HTMLInputElement)?.value
+                  const startDate = (document.getElementById("startDate") as HTMLInputElement)?.value
+                  const endDate = (document.getElementById("endDate") as HTMLInputElement)?.value
                   const exitTime = (document.getElementById("exitTime") as HTMLInputElement)?.value
                   const returnTime = (document.getElementById("returnTime") as HTMLInputElement)?.value
 
@@ -631,8 +738,8 @@ export default function SocietyEBDashboard({ societyId, societyName, userId }: S
                     alert('Please enter an activity/reason')
                     return
                   }
-                  if (!date) {
-                    alert('Please select a date')
+                  if (!startDate) {
+                    alert('Please select a start date')
                     return
                   }
                   if (!exitTime) {
@@ -644,7 +751,7 @@ export default function SocietyEBDashboard({ societyId, societyName, userId }: S
                     return
                   }
 
-                  handleSubmitBulkRequest(reason, date, exitTime, returnTime)
+                  handleSubmitBulkRequest(reason, startDate, endDate, exitTime, returnTime)
                 }}
                 className="w-full gap-2"
                 disabled={selectedStudents.length === 0}
@@ -704,7 +811,7 @@ export default function SocietyEBDashboard({ societyId, societyName, userId }: S
         )}
 
         {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
           <Card className="bg-blue-50 border-blue-200">
             <CardContent className="pt-6 text-center">
               <p className="text-sm text-muted-foreground mb-1">Total Members</p>
@@ -729,6 +836,20 @@ export default function SocietyEBDashboard({ societyId, societyName, userId }: S
             <CardContent className="pt-6 text-center">
               <p className="text-sm text-muted-foreground mb-1">Pending Your Review</p>
               <p className="text-3xl font-bold text-yellow-700">{pendingReviews.length}</p>
+            </CardContent>
+          </Card>
+          <Card
+            className={`${pendingActivations.length > 0 ? 'bg-purple-50 border-purple-200 cursor-pointer hover:shadow-md' : 'bg-slate-50 border-slate-200'}`}
+            onClick={() => pendingActivations.length > 0 && setScreen("activations")}
+          >
+            <CardContent className="pt-6 text-center">
+              <p className="text-sm text-muted-foreground mb-1">Activation Requests</p>
+              <p className={`text-3xl font-bold ${pendingActivations.length > 0 ? 'text-purple-700' : 'text-slate-700'}`}>
+                {pendingActivations.length}
+              </p>
+              {pendingActivations.length > 0 && (
+                <p className="text-xs text-purple-600 mt-1">Click to review</p>
+              )}
             </CardContent>
           </Card>
           <Card className="bg-green-50 border-green-200">

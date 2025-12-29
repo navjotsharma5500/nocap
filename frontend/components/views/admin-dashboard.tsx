@@ -70,7 +70,7 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true)
   const [stats, setStats] = useState<AdminStats | null>(null)
   const [studentsOut, setStudentsOut] = useState<StudentOut[]>([])
-  const [activeView, setActiveView] = useState<"live" | "approvals" | "academic" | "students">("live")
+  const [activeView, setActiveView] = useState<"live" | "active" | "approvals" | "academic" | "students" | "reeval">("live")
   const [allStudents, setAllStudents] = useState<Student[]>([])
   const [academicPermissions, setAcademicPermissions] = useState<AcademicPermission[]>([])
   const [searchQuery, setSearchQuery] = useState("")
@@ -86,21 +86,29 @@ export default function AdminDashboard() {
     exitTime: "",
     returnTime: ""
   })
+  const [reEvalRequests, setReEvalRequests] = useState<any[]>([])
+  const [livePermissions, setLivePermissions] = useState<any[]>([])
+  const [activePermissions, setActivePermissions] = useState<any[]>([])
+  const [statsV2, setStatsV2] = useState({ activePermissions: 0, livePermissions: 0, lateReturns: 0, pendingReEval: 0 })
 
   useEffect(() => {
     fetchAllData()
-    const interval = setInterval(fetchAllData, 30000) // Refresh every 30s
+    const interval = setInterval(fetchAllData, 15000) // Refresh every 15s for better real-time updates
     return () => clearInterval(interval)
   }, [])
 
   const fetchAllData = async () => {
     try {
       setLoading(true)
-      const [requestsRes, statsRes, studentsOutRes, listsRes] = await Promise.all([
+      const [requestsRes, statsRes, studentsOutRes, listsRes, reEvalRes, liveRes, activeRes, statsV2Res] = await Promise.all([
         fetch(`${API_URL}/api/approvals/faculty`),
         fetch(`${API_URL}/api/admin/stats`),
         fetch(`${API_URL}/api/admin/students-out`),
         fetch(`${API_URL}/api/admin/permission-lists`),
+        fetch(`${API_URL}/api/admin/re-eval-requests`),
+        fetch(`${API_URL}/api/admin/live-permissions`),
+        fetch(`${API_URL}/api/admin/active-permissions`),
+        fetch(`${API_URL}/api/admin/stats-v2`),
       ])
 
       const [requestsData, statsData, studentsOutData, listsData] = await Promise.all([
@@ -115,6 +123,12 @@ export default function AdminDashboard() {
       setStudentsOut(studentsOutData.students || [])
       setAllStudents(listsData.allStudents || [])
       setAcademicPermissions(listsData.academicPermissions || [])
+
+      // Fetch new data
+      if (reEvalRes.ok) setReEvalRequests(await reEvalRes.json())
+      if (liveRes.ok) setLivePermissions(await liveRes.json())
+      if (activeRes.ok) setActivePermissions(await activeRes.json())
+      if (statsV2Res.ok) setStatsV2(await statsV2Res.json())
     } catch (error) {
       console.error('Failed to fetch data:', error)
     } finally {
@@ -202,6 +216,26 @@ export default function AdminDashboard() {
     } catch (error) {
       console.error('Deflag error:', error)
       alert('Failed to remove flag')
+    }
+  }
+
+  const handleApproveDeflagReeval = async (notificationId: string, studentId: string) => {
+    try {
+      const res = await fetch(`${API_URL}/api/admin/approve-deflag-reeval`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notificationId, studentId }),
+      })
+
+      if (res.ok) {
+        await fetchAllData()
+        alert('Student successfully de-flagged')
+      } else {
+        alert('Failed to approve de-flag')
+      }
+    } catch (error) {
+      console.error('Approve deflag error:', error)
+      alert('Failed to approve de-flag')
     }
   }
 
@@ -348,21 +382,29 @@ export default function AdminDashboard() {
 
         {/* View Toggle */}
         <Tabs value={activeView} onValueChange={(v) => setActiveView(v as any)}>
-          <TabsList className="grid w-full max-w-2xl grid-cols-4">
-            <TabsTrigger value="live" className="gap-2">
-              <Users className="w-4 h-4" />
-              Live ({studentsOut.length})
+          <TabsList className="grid w-full max-w-4xl grid-cols-6">
+            <TabsTrigger value="live" className="gap-1 text-xs">
+              <Users className="w-3 h-3" />
+              Live ({statsV2.livePermissions})
             </TabsTrigger>
-            <TabsTrigger value="approvals" className="gap-2">
-              <Clock className="w-4 h-4" />
+            <TabsTrigger value="active" className="gap-1 text-xs">
+              <Check className="w-3 h-3" />
+              Active ({statsV2.activePermissions})
+            </TabsTrigger>
+            <TabsTrigger value="approvals" className="gap-1 text-xs">
+              <Clock className="w-3 h-3" />
               Approvals ({requests.length})
             </TabsTrigger>
-            <TabsTrigger value="academic" className="gap-2">
-              <BookOpen className="w-4 h-4" />
+            <TabsTrigger value="reeval" className="gap-1 text-xs">
+              <AlertTriangle className="w-3 h-3" />
+              Re-eval ({statsV2.pendingReEval})
+            </TabsTrigger>
+            <TabsTrigger value="academic" className="gap-1 text-xs">
+              <BookOpen className="w-3 h-3" />
               Academic
             </TabsTrigger>
-            <TabsTrigger value="students" className="gap-2">
-              <Flag className="w-4 h-4" />
+            <TabsTrigger value="students" className="gap-1 text-xs">
+              <Flag className="w-3 h-3" />
               Students
             </TabsTrigger>
           </TabsList>
@@ -569,6 +611,114 @@ export default function AdminDashboard() {
               </CardContent>
             </Card>
           </>
+        )}
+
+        {/* Active Permissions View - All Approved */}
+        {activeView === "active" && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Check className="w-5 h-5 text-green-600" />
+                Active Permissions (All Approved)
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {activePermissions.length === 0 ? (
+                <p className="text-center text-muted-foreground py-8">No active permissions</p>
+              ) : (
+                <div className="space-y-3">
+                  {activePermissions.map((perm: any) => (
+                    <div key={perm.id} className="border border-green-200 rounded-lg p-4 bg-green-50">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h3 className="font-semibold">{perm.student?.name}</h3>
+                          <p className="text-sm text-muted-foreground">
+                            {perm.student?.rollNo} | {perm.society?.name}
+                          </p>
+                          <p className="text-sm mt-1">{perm.reason}</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Date: {new Date(perm.date).toLocaleDateString()} |
+                            Exit: {perm.exitTime} | Return: {perm.returnTime || 'N/A'}
+                          </p>
+                        </div>
+                        <div className="flex flex-col items-end gap-2">
+                          <Badge className="bg-green-600">APPROVED</Badge>
+                          {perm.verifiedAt ? (
+                            <Badge variant="outline" className="text-xs">Exited</Badge>
+                          ) : (
+                            <Badge variant="secondary" className="text-xs">Not Yet Scanned</Badge>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Re-evaluation Requests View */}
+        {activeView === "reeval" && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-yellow-600" />
+                Re-evaluation Requests from EBs
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {reEvalRequests.length === 0 ? (
+                <p className="text-center text-muted-foreground py-8">No pending re-evaluation requests</p>
+              ) : (
+                <div className="space-y-3">
+                  {reEvalRequests.map((req: any) => {
+                    const metadata = req.metadata as any || {}
+                    return (
+                      <div key={req.id} className="border border-yellow-200 rounded-lg p-4 bg-yellow-50">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <h3 className="font-semibold">{req.title}</h3>
+                            <p className="text-sm text-muted-foreground">{req.message}</p>
+                            {metadata.reason && (
+                              <p className="text-sm mt-2">
+                                <span className="font-medium">EB Reason:</span> {metadata.reason}
+                              </p>
+                            )}
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Requested: {new Date(req.createdAt).toLocaleString()}
+                            </p>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              onClick={() => handleApproveDeflagReeval(req.id, metadata.studentId)}
+                              className="bg-green-600 hover:bg-green-700 gap-1"
+                            >
+                              <Check className="w-4 h-4" />
+                              Approve De-flag
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                // Mark as read without de-flagging
+                                fetch(`${API_URL}/api/notifications/${req.id}/read`, { method: 'POST' })
+                                  .then(() => fetchAllData())
+                              }}
+                            >
+                              <X className="w-4 h-4" />
+                              Reject
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         )}
 
         {/* Academic Permissions View */}

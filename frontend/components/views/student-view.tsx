@@ -519,19 +519,70 @@ export default function StudentView({ studentId }: StudentViewProps) {
               <CardTitle className="text-lg">My Permissions</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {requests.slice(0, 5).map((req) => (
-                <div key={req.id} className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                  <div>
-                    <p className="font-medium text-sm">{req.reason}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {new Date(req.date).toLocaleDateString()}
-                    </p>
+              {requests.slice(0, 5).map((req) => {
+                // Check if this is an approved pass that can be activated
+                const canActivate = req.status === 'APPROVED' && !req.verifiedAt && !req.activationStatus
+                const isPendingActivation = req.activationStatus === 'PENDING_EB_ACTIVATION'
+                const isActivated = req.activationStatus === 'ACTIVATED'
+
+                return (
+                  <div key={req.id} className="p-3 bg-muted rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium text-sm">{req.reason}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(req.date).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge className={getStatusColor(req.status)}>
+                          {getStatusLabel(req.status)}
+                        </Badge>
+                        {isPendingActivation && (
+                          <Badge variant="outline" className="text-xs text-yellow-600 border-yellow-600">
+                            Activating...
+                          </Badge>
+                        )}
+                        {isActivated && (
+                          <Badge variant="outline" className="text-xs text-green-600 border-green-600">
+                            Activated
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Activate button for approved permissions not yet scanned */}
+                    {canActivate && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="mt-2 w-full text-sm gap-1"
+                        onClick={async () => {
+                          try {
+                            const res = await fetch(`${API_URL}/api/student/activate-permission`, {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ permissionId: req.id, studentId })
+                            })
+                            if (res.ok) {
+                              alert('Activation request sent to EB for approval!')
+                              fetchRequests()
+                            } else {
+                              alert('Failed to request activation')
+                            }
+                          } catch (error) {
+                            console.error('Activation error:', error)
+                            alert('Failed to request activation')
+                          }
+                        }}
+                      >
+                        <CheckCircle className="w-3 h-3" />
+                        Activate Permission (Skip Hostel Scan)
+                      </Button>
+                    )}
                   </div>
-                  <Badge className={getStatusColor(req.status)}>
-                    {getStatusLabel(req.status)}
-                  </Badge>
-                </div>
-              ))}
+                )
+              })}
             </CardContent>
           </Card>
         )}

@@ -105,6 +105,8 @@ model PermissionRequest {
   societyId     String
   reason        String
   date          DateTime
+  startDate     DateTime?     // For date range support
+  endDate       DateTime?     // For date range support
   exitTime      String
   returnTime    String?
   status        RequestStatus @default(PENDING_PRESIDENT)
@@ -115,7 +117,15 @@ model PermissionRequest {
   verifiedBy    String?       // guard who verified exit
   checkInAt     DateTime?     // return scan time
   checkInBy     String?       // guard who verified return
+  isLate        Boolean       @default(false)  // Was student late returning?
+  lateMinutes   Int?          // How many minutes late
   bulkRequestId String?       // if created via bulk request
+  
+  // Self-activation fields
+  isActivated       Boolean   @default(false)
+  activatedAt       DateTime?
+  activationStatus  String?   // PENDING_EB_ACTIVATION, ACTIVATED, REJECTED
+  
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
@@ -130,6 +140,8 @@ model BulkRequest {
   createdBy     String        // EB user ID
   reason        String
   date          DateTime
+  startDate     DateTime?     // For date range
+  endDate       DateTime?     // For date range
   exitTime      String
   returnTime    String?
   documentUrl   String?       // attachment URL

@@ -1345,6 +1345,501 @@ app.get('/api/admin/permission-lists', async (req, res) => {
 });
 
 
+// ============ PHASE 2: RE-EVAL APPROVAL ============
+
+// Admin - Get pending re-evaluation requests
+app.get('/api/admin/re-eval-requests', async (req, res) => {
+  try {
+    const requests = await prisma.notification.findMany({
+      where: { type: 'RE_EVAL_REQUESTED' },
+      orderBy: { createdAt: 'desc' },
+    });
+    res.json(requests);
+  } catch (error) {
+    console.error('Get re-eval requests error:', error);
+    res.status(500).json({ error: 'Failed to get re-eval requests' });
+  }
+});
+
+// Admin - Approve de-flag from re-evaluation request
+app.post('/api/admin/approve-deflag-reeval', async (req, res) => {
+  try {
+    const { notificationId, studentId } = req.body;
+
+    // De-flag the student
+    await prisma.user.update({
+      where: { id: studentId },
+      data: {
+        isFlagged: false,
+        flagType: null,
+        flagReason: null,
+        flaggedBy: null,
+        flaggedAt: null,
+      },
+    });
+
+    // Mark notification as read
+    if (notificationId) {
+      await prisma.notification.update({
+        where: { id: notificationId },
+        data: { isRead: true },
+      });
+    }
+
+    res.json({ success: true, message: 'Student de-flagged' });
+  } catch (error) {
+    console.error('Approve deflag error:', error);
+    res.status(500).json({ error: 'Failed to de-flag student' });
+  }
+});
+
+
+// ============ PHASE 2: STUDENT SELF-ACTIVATION ============
+
+// Student - Request activation of approved permission
+app.post('/api/student/activate-permission', async (req, res) => {
+  try {
+    const { permissionId, studentId } = req.body;
+
+    const permission = await prisma.permissionRequest.findUnique({
+      where: { id: permissionId },
+    });
+
+    if (!permission || permission.studentId !== studentId) {
+      return res.status(404).json({ error: 'Permission not found' });
+    }
+
+    if (permission.status !== 'APPROVED') {
+      return res.status(400).json({ error: 'Permission is not approved' });
+    }
+
+    if (permission.verifiedAt) {
+      return res.status(400).json({ error: 'Permission already activated' });
+    }
+
+    // Set activation status to pending EB approval
+    await prisma.permissionRequest.update({
+      where: { id: permissionId },
+      data: {
+        activationStatus: 'PENDING_EB_ACTIVATION',
+      },
+    });
+
+    res.json({ success: true, message: 'Activation request sent to EB' });
+  } catch (error) {
+    console.error('Activate permission error:', error);
+    res.status(500).json({ error: 'Failed to request activation' });
+  }
+});
+
+// EB - Get pending activation requests
+app.get('/api/eb/pending-activations/:societyId', async (req, res) => {
+  try {
+    const { societyId } = req.params;
+
+    const activations = await prisma.permissionRequest.findMany({
+      where: {
+        societyId,
+        activationStatus: 'PENDING_EB_ACTIVATION',
+      },
+      include: { student: true, society: true },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    res.json(activations);
+  } catch (error) {
+    console.error('Get pending activations error:', error);
+    res.status(500).json({ error: 'Failed to get pending activations' });
+  }
+});
+
+// EB - Approve/Reject activation
+app.post('/api/eb/approve-activation', async (req, res) => {
+  try {
+    const { permissionId, action } = req.body; // action: 'approve' | 'reject'
+
+    if (action === 'approve') {
+      await prisma.permissionRequest.update({
+        where: { id: permissionId },
+        data: {
+          isActivated: true,
+          activatedAt: new Date(),
+          activationStatus: 'ACTIVATED',
+          verifiedAt: new Date(), // Treat as if they exited
+        },
+      });
+    } else {
+      await prisma.permissionRequest.update({
+        where: { id: permissionId },
+        data: {
+          activationStatus: 'REJECTED',
+        },
+      });
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Approve activation error:', error);
+    res.status(500).json({ error: 'Failed to process activation' });
+  }
+});
+
+
+// ============ PHASE 2: ACTIVE VS LIVE PERMISSIONS ============
+
+// Admin - Get active permissions (all approved)
+app.get('/api/admin/active-permissions', async (req, res) => {
+  try {
+    const permissions = await prisma.permissionRequest.findMany({
+      where: { status: 'APPROVED' },
+      include: { student: true, society: true },
+      orderBy: { createdAt: 'desc' },
+    });
+    res.json(permissions);
+  } catch (error) {
+    console.error('Get active permissions error:', error);
+    res.status(500).json({ error: 'Failed to get active permissions' });
+  }
+});
+
+// Admin - Get live permissions (scanned out, not returned)
+app.get('/api/admin/live-permissions', async (req, res) => {
+  try {
+    const permissions = await prisma.permissionRequest.findMany({
+      where: {
+        status: 'APPROVED',
+        verifiedAt: { not: null },
+        checkInAt: null,
+      },
+      include: { student: true, society: true },
+      orderBy: { verifiedAt: 'desc' },
+    });
+    res.json(permissions);
+  } catch (error) {
+    console.error('Get live permissions error:', error);
+    res.status(500).json({ error: 'Failed to get live permissions' });
+  }
+});
+
+// Admin - Get updated stats with active/live split
+app.get('/api/admin/stats-v2', async (req, res) => {
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Active permissions (all approved today)
+    const activePermissions = await prisma.permissionRequest.count({
+      where: {
+        status: 'APPROVED',
+        date: { gte: today },
+      },
+    });
+
+    // Live permissions (scanned out, not returned)
+    const livePermissions = await prisma.permissionRequest.count({
+      where: {
+        status: 'APPROVED',
+        verifiedAt: { not: null },
+        checkInAt: null,
+      },
+    });
+
+    // Students who returned late
+    const lateReturns = await prisma.permissionRequest.count({
+      where: {
+        isLate: true,
+        checkInAt: { gte: today },
+      },
+    });
+
+    // Pending re-eval requests
+    const pendingReEval = await prisma.notification.count({
+      where: { type: 'RE_EVAL_REQUESTED', isRead: false },
+    });
+
+    res.json({
+      activePermissions,
+      livePermissions,
+      lateReturns,
+      pendingReEval,
+    });
+  } catch (error) {
+    console.error('Stats v2 error:', error);
+    res.status(500).json({ error: 'Failed to get stats' });
+  }
+});
+
+
+// ============ PHASE 2: ENHANCED CHECK-IN WITH LATE DETECTION ============
+
+// Guard - Check-in with late detection
+app.post('/api/guard/check-in-v2', async (req, res) => {
+  try {
+    const { qrToken, guardId } = req.body;
+
+    // Verify QR token and get permission
+    let decoded: any;
+    try {
+      decoded = jwt.verify(qrToken, JWT_SECRET);
+    } catch (err) {
+      return res.status(400).json({ error: 'Invalid or expired QR code' });
+    }
+
+    const permission = await prisma.permissionRequest.findUnique({
+      where: { id: decoded.permissionId },
+      include: { student: true, society: true },
+    });
+
+    if (!permission) {
+      return res.status(404).json({ error: 'Permission not found' });
+    }
+
+    // Check if already checked in
+    if (permission.checkInAt) {
+      return res.status(400).json({
+        error: 'Already checked in',
+        checkInTime: permission.checkInAt,
+      });
+    }
+
+    // Check if exit was verified
+    if (!permission.verifiedAt) {
+      return res.status(400).json({
+        error: 'Permission not activated - student has not exited',
+      });
+    }
+
+    // Calculate if late
+    const now = new Date();
+    let isLate = false;
+    let lateMinutes = 0;
+
+    if (permission.returnTime) {
+      const [hours, minutes] = permission.returnTime.split(':').map(Number);
+      const expectedReturn = new Date(permission.date);
+      expectedReturn.setHours(hours, minutes, 0, 0);
+      
+      // If expected return is before exit time, assume next day
+      if (expectedReturn < permission.verifiedAt) {
+        expectedReturn.setDate(expectedReturn.getDate() + 1);
+      }
+
+      if (now > expectedReturn) {
+        isLate = true;
+        lateMinutes = Math.floor((now.getTime() - expectedReturn.getTime()) / (1000 * 60));
+      }
+    }
+
+    // Update permission with check-in
+    await prisma.permissionRequest.update({
+      where: { id: permission.id },
+      data: {
+        checkInAt: now,
+        checkInBy: guardId,
+        isLate,
+        lateMinutes: isLate ? lateMinutes : null,
+      },
+    });
+
+    // If late, create notifications
+    if (isLate) {
+      // Find EB users of the society
+      const ebUsers = await prisma.user.findMany({
+        where: { societyId: permission.societyId, role: 'SOCIETY_EB' },
+      });
+
+      for (const eb of ebUsers) {
+        await prisma.notification.create({
+          data: {
+            userId: eb.id,
+            type: 'LATE_RETURN',
+            title: 'Late Return Alert',
+            message: `${permission.student.name} returned ${lateMinutes} minutes late.`,
+            metadata: {
+              studentId: permission.studentId,
+              permissionId: permission.id,
+              lateMinutes,
+            },
+          },
+        });
+      }
+
+      // If more than 1 hour late, notify admin too
+      if (lateMinutes > 60) {
+        const admins = await prisma.user.findMany({
+          where: { role: 'FACULTY_ADMIN' },
+        });
+
+        for (const admin of admins) {
+          await prisma.notification.create({
+            data: {
+              userId: admin.id,
+              type: 'SEVERELY_LATE_RETURN',
+              title: 'Severely Late Return - Action Required',
+              message: `${permission.student.name} returned ${Math.floor(lateMinutes / 60)}h ${lateMinutes % 60}m late!`,
+              metadata: {
+                studentId: permission.studentId,
+                permissionId: permission.id,
+                lateMinutes,
+              },
+            },
+          });
+        }
+      }
+    }
+
+    res.json({
+      success: true,
+      student: {
+        name: permission.student.name,
+        rollNo: permission.student.rollNo,
+      },
+      society: permission.society.name,
+      exitTime: permission.verifiedAt,
+      returnTime: permission.returnTime,
+      checkInTime: now,
+      isLate,
+      lateMinutes: isLate ? lateMinutes : 0,
+    });
+  } catch (error) {
+    console.error('Check-in v2 error:', error);
+    res.status(500).json({ error: 'Failed to check in' });
+  }
+});
+
+
+// ============ PHASE 2: BULK REQUEST WITH DATE RANGE ============
+
+// EB - Create bulk request with date range
+app.post('/api/eb/create-bulk-request-v2', async (req, res) => {
+  try {
+    const { societyId, createdBy, reason, startDate, endDate, exitTime, returnTime, documentUrl, studentIds } = req.body;
+
+    if (!societyId || !reason || !startDate || !exitTime || !studentIds || studentIds.length === 0) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    // Create bulk request with date range
+    const bulkRequest = await prisma.bulkRequest.create({
+      data: {
+        societyId,
+        createdBy,
+        reason,
+        date: new Date(startDate),
+        startDate: new Date(startDate),
+        endDate: endDate ? new Date(endDate) : new Date(startDate),
+        exitTime,
+        returnTime,
+        documentUrl,
+        status: 'PENDING_PRESIDENT',
+      },
+    });
+
+    // Create individual permission requests for each student
+    for (const studentId of studentIds) {
+      await prisma.permissionRequest.create({
+        data: {
+          studentId,
+          societyId,
+          reason,
+          date: new Date(startDate),
+          startDate: new Date(startDate),
+          endDate: endDate ? new Date(endDate) : new Date(startDate),
+          exitTime,
+          returnTime,
+          status: 'PENDING_PRESIDENT',
+          bulkRequestId: bulkRequest.id,
+        },
+      });
+    }
+
+    res.json({ success: true, bulkRequest });
+  } catch (error) {
+    console.error('Create bulk request v2 error:', error);
+    res.status(500).json({ error: 'Failed to create bulk request' });
+  }
+});
+
+
+// ============ PHASE 2: QR VERIFICATION STATUS ============
+
+// Guard - Verify QR and get full status
+app.post('/api/guard/verify-qr-v2', async (req, res) => {
+  try {
+    const { qrToken } = req.body;
+
+    // Verify JWT
+    let decoded: any;
+    try {
+      decoded = jwt.verify(qrToken, JWT_SECRET);
+    } catch (err) {
+      return res.status(400).json({
+        valid: false,
+        error: 'Invalid or expired QR code',
+      });
+    }
+
+    const permission = await prisma.permissionRequest.findUnique({
+      where: { id: decoded.permissionId },
+      include: { student: true, society: true },
+    });
+
+    if (!permission) {
+      return res.status(404).json({
+        valid: false,
+        error: 'Permission not found',
+      });
+    }
+
+    // Determine status
+    const now = new Date();
+    let status = 'UNKNOWN';
+    let canExit = false;
+    let canCheckIn = false;
+
+    if (permission.status !== 'APPROVED') {
+      status = 'NOT_APPROVED';
+    } else if (permission.checkInAt) {
+      status = 'COMPLETED';
+    } else if (permission.verifiedAt) {
+      status = 'ACTIVE_OUT';
+      canCheckIn = true;
+    } else if (permission.expiresAt && now > permission.expiresAt) {
+      status = 'EXPIRED';
+    } else {
+      status = 'ACTIVE_READY';
+      canExit = true;
+    }
+
+    res.json({
+      valid: status === 'ACTIVE_READY' || status === 'ACTIVE_OUT',
+      status,
+      canExit,
+      canCheckIn,
+      student: {
+        id: permission.student.id,
+        name: permission.student.name,
+        rollNo: permission.student.rollNo,
+        branch: permission.student.branch,
+        isFlagged: permission.student.isFlagged,
+      },
+      society: permission.society.name,
+      reason: permission.reason,
+      date: permission.date,
+      startDate: permission.startDate,
+      endDate: permission.endDate,
+      exitTime: permission.exitTime,
+      returnTime: permission.returnTime,
+      verifiedAt: permission.verifiedAt,
+      expiresAt: permission.expiresAt,
+    });
+  } catch (error) {
+    console.error('Verify QR v2 error:', error);
+    res.status(500).json({ error: 'Failed to verify QR' });
+  }
+});
+
+
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
 });
