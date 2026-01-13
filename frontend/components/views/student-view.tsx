@@ -11,6 +11,7 @@ import QRCode from 'qrcode'
 import { getStatusLabel, getStatusColor } from "@/lib/workflow-data"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
+const HOSTEL_QR_CODE = "HOSTEL_DESK_ACTIVATE_V1"
 
 interface StudentViewProps {
   studentId?: string
@@ -44,6 +45,7 @@ export default function StudentView({ studentId }: StudentViewProps) {
   const [activePass, setActivePass] = useState<any>(null)
   const [scannedData, setScannedData] = useState<string | null>(null)
   const [qrDataUrl, setQrDataUrl] = useState<string>("")
+  const [activationLoading, setActivationLoading] = useState(false)
 
   // Fetch membership status on mount
   useEffect(() => {
@@ -152,9 +154,50 @@ export default function StudentView({ studentId }: StudentViewProps) {
     }
   }
 
-  const handleScan = (result: any) => {
+  const handleScan = async (result: any) => {
     if (result?.[0]?.rawValue) {
-      setScannedData(result[0].rawValue)
+      const scannedValue = result[0].rawValue
+      setScannedData(scannedValue)
+
+      // Logic for Hostel Desk Activation
+      if (scannedValue === HOSTEL_QR_CODE) {
+        // Find a permission that is APPROVED and ready to be activated
+        // (Not yet verified/exited, and not yet activated/pending activation)
+        const permissionToActivate = requests.find(r =>
+          r.status === 'APPROVED' &&
+          !r.verifiedAt &&
+          r.activationStatus !== 'ACTIVATED' &&
+          r.activationStatus !== 'PENDING_EB_ACTIVATION'
+        )
+
+        if (permissionToActivate) {
+          setActivationLoading(true)
+          try {
+            const res = await fetch(`${API_URL}/api/student/activate-permission`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ permissionId: permissionToActivate.id, studentId })
+            })
+
+            if (res.ok) {
+              alert("✅ Permission Activated! Waiting for EB approval.")
+              setScreen("dashboard")
+              fetchRequests() // Refresh list
+            } else {
+              const err = await res.json()
+              alert(`Activation Failed: ${err.error || 'Unknown error'}`)
+            }
+          } catch (error) {
+            console.error("Activation error:", error)
+            alert("Network error during activation")
+          } finally {
+            setActivationLoading(false)
+          }
+        } else {
+          // scanned correct QR but no suitable permission found
+          alert("No approved permissions found eligible for activation.")
+        }
+      }
     }
   }
 
