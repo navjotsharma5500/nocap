@@ -180,7 +180,7 @@ export default function StudentView({ studentId }: StudentViewProps) {
             })
 
             if (res.ok) {
-              alert("✅ Permission Activated! Waiting for EB approval.")
+              alert(`✅ Activation Successful!\n\nYour permission for "${permissionToActivate.reason}" is now LIVE.\n\nYou are verified to leave the hostel.`)
               setScreen("dashboard")
               fetchRequests() // Refresh list
             } else {

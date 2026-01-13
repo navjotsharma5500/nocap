@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
 import { Button } from "@/components/ui/button"
@@ -15,16 +15,21 @@ export default function LoginPage() {
     const { login, user } = useAuth()
     const router = useRouter()
 
+    useEffect(() => {
+        if (user) {
+            const roleRoutes: Record<string, string> = {
+                STUDENT: "/student",
+                SOCIETY_EB: "/eb",
+                SOCIETY_PRESIDENT: "/president",
+                FACULTY_ADMIN: "/admin",
+                GUARD: "/guard",
+            }
+            router.push(roleRoutes[user.role] || "/student")
+        }
+    }, [user, router])
+
     // Redirect if already logged in
     if (user) {
-        const roleRoutes: Record<string, string> = {
-            STUDENT: "/student",
-            SOCIETY_EB: "/eb",
-            SOCIETY_PRESIDENT: "/president",
-            FACULTY_ADMIN: "/admin",
-            GUARD: "/guard",
-        }
-        router.push(roleRoutes[user.role] || "/student")
         return null
     }
 

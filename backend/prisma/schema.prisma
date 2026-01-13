@@ -168,7 +168,10 @@ model Notification {
 
 model AcademicPermission {
   id          String        @id @default(uuid())
-  studentId   String
+  studentId   String?       // Optional now, for manual entry
+  studentName String        // New field
+  rollNo      String        // New field
+  faculty     String        // New field
   reason      String
   date        DateTime
   department  String?
@@ -185,7 +188,7 @@ model AcademicPermission {
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
-  student User @relation(fields: [studentId], references: [id])
+  student User? @relation(fields: [studentId], references: [id]) // Optional relation
 }
 
 model RoomBooking {

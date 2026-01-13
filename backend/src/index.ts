@@ -1141,11 +1141,14 @@ app.post('/api/president/approve-bulk-request', async (req, res) => {
 // Admin - Create academic permission
 app.post('/api/admin/academic-permissions', async (req, res) => {
   try {
-    const { studentId, reason, date, department, exitTime, returnTime } = req.body;
+    const { studentId, studentName, rollNo, faculty, reason, date, department, exitTime, returnTime } = req.body;
 
     const permission = await prisma.academicPermission.create({
       data: {
-        studentId,
+        studentId: studentId || undefined,
+        studentName,
+        rollNo,
+        faculty,
         reason,
         date: new Date(date),
         department,
@@ -1417,15 +1420,20 @@ app.post('/api/student/activate-permission', async (req, res) => {
       return res.status(400).json({ error: 'Permission already activated' });
     }
 
-    // Set activation status to pending EB approval
+    // Instant Activation (Hostel Desk QR)
+    // - activationStatus: ACTIVATED
+    // - verifiedAt: Set now (this marks them as "Live" / "Out of Hostel")
     await prisma.permissionRequest.update({
       where: { id: permissionId },
       data: {
-        activationStatus: 'PENDING_EB_ACTIVATION',
+        isActivated: true,
+        activationStatus: 'ACTIVATED',
+        activatedAt: new Date(),
+        verifiedAt: new Date(), // Important: This makes them count as "Live" / "Currently Out"
       },
     });
 
-    res.json({ success: true, message: 'Activation request sent to EB' });
+    res.json({ success: true, message: 'Permission Activated & Verified. You may leave.' });
   } catch (error) {
     console.error('Activate permission error:', error);
     res.status(500).json({ error: 'Failed to request activation' });

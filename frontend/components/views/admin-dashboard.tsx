@@ -80,6 +80,9 @@ export default function AdminDashboard() {
   const [academicDialogOpen, setAcademicDialogOpen] = useState(false)
   const [newAcademicForm, setNewAcademicForm] = useState({
     studentId: "",
+    studentName: "",
+    rollNo: "",
+    faculty: "",
     reason: "",
     date: "",
     department: "",
@@ -249,7 +252,7 @@ export default function AdminDashboard() {
 
       if (res.ok) {
         setAcademicDialogOpen(false)
-        setNewAcademicForm({ studentId: "", reason: "", date: "", department: "", exitTime: "", returnTime: "" })
+        setNewAcademicForm({ studentId: "", studentName: "", rollNo: "", faculty: "", reason: "", date: "", department: "", exitTime: "", returnTime: "" })
         await fetchAllData()
       } else {
         alert('Failed to create academic permission')
@@ -906,27 +909,45 @@ export default function AdminDashboard() {
             <DialogTitle>Add Academic Permission</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div>
-              <label className="text-sm font-medium mb-2 block">Student ID</label>
-              <Select value={newAcademicForm.studentId} onValueChange={(v) => setNewAcademicForm({ ...newAcademicForm, studentId: v })}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select student" />
-                </SelectTrigger>
-                <SelectContent>
-                  {allStudents.slice(0, 50).map((s) => (
-                    <SelectItem key={s.id} value={s.id}>{s.name} ({s.rollNo})</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            {/* Student Details */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium mb-2 block">Student Name</label>
+                <Input
+                  value={newAcademicForm.studentName}
+                  onChange={(e) => setNewAcademicForm({ ...newAcademicForm, studentName: e.target.value })}
+                  placeholder="Full Name"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-2 block">Roll No</label>
+                <Input
+                  value={newAcademicForm.rollNo}
+                  onChange={(e) => setNewAcademicForm({ ...newAcademicForm, rollNo: e.target.value })}
+                  placeholder="e.g. 2021CS..."
+                />
+              </div>
             </div>
-            <div>
-              <label className="text-sm font-medium mb-2 block">Department</label>
-              <Input
-                value={newAcademicForm.department}
-                onChange={(e) => setNewAcademicForm({ ...newAcademicForm, department: e.target.value })}
-                placeholder="e.g., Computer Science"
-              />
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium mb-2 block">Department</label>
+                <Input
+                  value={newAcademicForm.department}
+                  onChange={(e) => setNewAcademicForm({ ...newAcademicForm, department: e.target.value })}
+                  placeholder="e.g. CSE"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-2 block">Faculty</label>
+                <Input
+                  value={newAcademicForm.faculty}
+                  onChange={(e) => setNewAcademicForm({ ...newAcademicForm, faculty: e.target.value })}
+                  placeholder="Prof. Name"
+                />
+              </div>
             </div>
+
             <div>
               <label className="text-sm font-medium mb-2 block">Reason</label>
               <Textarea
@@ -936,6 +957,7 @@ export default function AdminDashboard() {
                 rows={2}
               />
             </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="text-sm font-medium mb-2 block">Date</label>
