@@ -4,15 +4,10 @@ import jwt from 'jsonwebtoken';
 import { prisma } from './lib/prisma';
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = Number(process.env.PORT) || 3001;
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
-app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-user-id'],
-  credentials: true
-}));
+app.use(cors());
 app.use(express.json());
 
 // JWT Auth Middleware
@@ -1848,6 +1843,7 @@ app.post('/api/guard/verify-qr-v2', async (req, res) => {
 });
 
 
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`Also accessible on network at http://172.16.221.136:${PORT}`);
 });
