@@ -13,6 +13,17 @@ const prisma = new PrismaClient({ adapter })
 async function main() {
   console.log('Seeding database...')
 
+  // Clear operational data
+  await prisma.notification.deleteMany({})
+  await prisma.academicPermission.deleteMany({})
+  await prisma.permissionRequest.deleteMany({})
+  await prisma.bulkRequest.deleteMany({})
+  await prisma.roomBooking.deleteMany({})
+  await prisma.venueBooking.deleteMany({})
+  await prisma.membership.deleteMany({})
+  
+  console.log('✓ Cleared operational data')
+
   // Create societies with domains and join codes
   const societies = await Promise.all([
     prisma.society.upsert({
@@ -89,6 +100,37 @@ async function main() {
     },
   })
   console.log('✓ Seeded student:', student.email)
+
+  // Create additional students
+  const student1 = await prisma.user.upsert({
+    where: { email: 'student.one@university.edu' },
+    update: {},
+    create: {
+      email: 'student.one@university.edu',
+      name: 'Student One',
+      rollNo: '2024ST01',
+      year: '2',
+      branch: 'ECE',
+      password: 'password123',
+      role: 'STUDENT',
+    },
+  })
+  console.log('✓ Seeded student 1:', student1.email)
+
+  const student2 = await prisma.user.upsert({
+    where: { email: 'student.two@university.edu' },
+    update: {},
+    create: {
+      email: 'student.two@university.edu',
+      name: 'Student Two',
+      rollNo: '2024ST02',
+      year: '2',
+      branch: 'MECH',
+      password: 'password123',
+      role: 'STUDENT',
+    },
+  })
+  console.log('✓ Seeded student 2:', student2.email)
 
   // Create EB users for each society
   const ebUsers = await Promise.all([
