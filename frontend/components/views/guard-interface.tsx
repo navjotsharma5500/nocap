@@ -257,6 +257,10 @@ export default function GuardInterface() {
                       <span className="font-semibold">{studentData.rollNo}</span>
                     </div>
                     <div className="flex justify-between items-center pb-2 border-b border-green-100">
+                      <span className="font-medium text-slate-600">Hostel:</span>
+                      <span className="font-semibold">{studentData.hostel}</span>
+                    </div>
+                    <div className="flex justify-between items-center pb-2 border-b border-green-100">
                       <span className="font-medium text-slate-600">Society:</span>
                       <span className="font-semibold">{studentData.society}</span>
                     </div>
@@ -305,6 +309,10 @@ export default function GuardInterface() {
                     <div className="flex justify-between items-center pb-2 border-b border-blue-100">
                       <span className="font-medium text-slate-600">Roll No:</span>
                       <span className="font-semibold">{studentData.rollNo}</span>
+                    </div>
+                    <div className="flex justify-between items-center pb-2 border-b border-blue-100">
+                      <span className="font-medium text-slate-600">Hostel:</span>
+                      <span className="font-semibold">{studentData.hostel}</span>
                     </div>
                     <div className="flex justify-between items-center pb-2 border-b border-blue-100">
                       <span className="font-medium text-slate-600">Exit Time:</span>

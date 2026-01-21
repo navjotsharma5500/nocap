@@ -105,10 +105,12 @@ export default function StudentView({ studentId }: StudentViewProps) {
       const data = await res.json()
       setRequests(data)
 
-      // Check for approved pass
-      const approved = data.find((r: any) => r.status === 'APPROVED' && r.qrToken)
+      // Check for approved pass (Active: Approved + QR + Not Returned)
+      const approved = data.find((r: any) => r.status === 'APPROVED' && r.qrToken && !r.checkInAt)
       if (approved) {
         setActivePass(approved)
+      } else {
+        setActivePass(null)
       }
     } catch (error) {
       console.error("Failed to fetch requests:", error)
@@ -161,31 +163,39 @@ export default function StudentView({ studentId }: StudentViewProps) {
 
       // Logic for Hostel Desk Activation
       if (scannedValue === HOSTEL_QR_CODE) {
-        // Find a permission that is APPROVED and ready to be activated
-        // (Not yet verified/exited, and not yet activated/pending activation)
-        const permissionToActivate = requests.find(r =>
+        // Priority 1: Find a LIVE permission (verified but not checked-in) -> To Return
+        let permissionToProcess = requests.find(r =>
           r.status === 'APPROVED' &&
-          !r.verifiedAt &&
-          r.activationStatus !== 'ACTIVATED' &&
-          r.activationStatus !== 'PENDING_EB_ACTIVATION'
+          r.verifiedAt &&
+          !r.checkInAt
         )
 
-        if (permissionToActivate) {
+        // Priority 2: Find a FRESH permission (not verified) -> To Exit
+        if (!permissionToProcess) {
+          permissionToProcess = requests.find(r =>
+            r.status === 'APPROVED' &&
+            !r.verifiedAt &&
+            r.activationStatus !== 'PENDING_EB_ACTIVATION'
+          )
+        }
+
+        if (permissionToProcess) {
           setActivationLoading(true)
           try {
             const res = await fetch(`${API_URL}/api/student/activate-permission`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ permissionId: permissionToActivate.id, studentId })
+              body: JSON.stringify({ permissionId: permissionToProcess.id, studentId })
             })
 
+            const responseData = await res.json()
+
             if (res.ok) {
-              alert(`✅ Activation Successful!\n\nYour permission for "${permissionToActivate.reason}" is now LIVE.\n\nYou are verified to leave the hostel.`)
+              alert(`✅ Success!\n\n${responseData.message}`)
               setScreen("dashboard")
               fetchRequests() // Refresh list
             } else {
-              const err = await res.json()
-              alert(`Activation Failed: ${err.error || 'Unknown error'}`)
+              alert(`Action Failed: ${responseData.error || 'Unknown error'}`)
             }
           } catch (error) {
             console.error("Activation error:", error)
@@ -195,7 +205,7 @@ export default function StudentView({ studentId }: StudentViewProps) {
           }
         } else {
           // scanned correct QR but no suitable permission found
-          alert("No approved permissions found eligible for activation.")
+          alert("No approved permissions found eligible for Exit or Return.")
         }
       }
     }

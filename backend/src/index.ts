@@ -1411,8 +1411,21 @@ app.post('/api/student/activate-permission', async (req, res) => {
       return res.status(400).json({ error: 'Permission is not approved' });
     }
 
+    if (permission.checkInAt) {
+      return res.status(400).json({ error: 'Permission already used for today' });
+    }
+
+    // Toggle: If satisfied (verifiedAt present), then Check-in (De-live)
     if (permission.verifiedAt) {
-      return res.status(400).json({ error: 'Permission already activated' });
+      // Check-in logic
+      await prisma.permissionRequest.update({
+        where: { id: permissionId },
+        data: {
+          checkInAt: new Date(),
+          checkInBy: 'HOSTEL_KIOSK', // Mark as auto-checked by kiosk
+        },
+      });
+      return res.json({ success: true, message: 'Welcome back! You are checked in.' });
     }
 
     // Instant Activation (Hostel Desk QR)
@@ -1425,6 +1438,7 @@ app.post('/api/student/activate-permission', async (req, res) => {
         activationStatus: 'ACTIVATED',
         activatedAt: new Date(),
         verifiedAt: new Date(), // Important: This makes them count as "Live" / "Currently Out"
+        verifiedBy: 'HOSTEL_KIOSK',
       },
     });
 
