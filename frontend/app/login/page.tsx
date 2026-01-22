@@ -61,14 +61,6 @@ export default function LoginPage() {
         setIsLoading(false)
     }
 
-    const testAccounts = [
-        { label: "EB (URJA)", email: "harsh.shrivas@thapar.edu", password: "eburja@tiet1" },
-        { label: "EB (CCS)", email: "manish.tiwari@thapar.edu", password: "ebccs@tiet1" },
-        { label: "President", email: "mohit.arora@thapar.edu", password: "eburja@tiet1" },
-        { label: "Admin", email: "admin@thapar.edu", password: "admin@tiet1" },
-        { label: "Guard", email: "guard1@thapar.edu", password: "guard@tiet1" },
-    ]
-
     return (
         <div className="min-h-screen bg-black flex items-center justify-center p-4">
             <div className="w-full max-w-md">
@@ -149,25 +141,6 @@ export default function LoginPage() {
                             Create an account
                         </Link>
                     </p>
-
-                    {/* Test Accounts */}
-                    <div className="mt-6 pt-6 border-t border-white/10">
-                        <p className="text-xs text-gray-500 text-center mb-3">Quick Login (Demo)</p>
-                        <div className="flex flex-wrap gap-2 justify-center">
-                            {testAccounts.map((account) => (
-                                <button
-                                    key={account.email}
-                                    onClick={() => {
-                                        setEmail(account.email)
-                                        setPassword(account.password)
-                                    }}
-                                    className="px-3 py-1.5 text-xs bg-white/10 hover:bg-white/20 text-gray-300 rounded-full transition"
-                                >
-                                    {account.label}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
                 </div>
 
                 <p className="text-center text-gray-600 text-sm mt-6">
@@ -177,4 +150,3 @@ export default function LoginPage() {
         </div>
     )
 }
-
