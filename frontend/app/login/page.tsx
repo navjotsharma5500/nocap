@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { useAuth } from "@/lib/auth-context"
 import { Button } from "@/components/ui/button"
 import { Shield, Mail, Lock, Eye, EyeOff, AlertCircle } from "lucide-react"
@@ -61,11 +62,11 @@ export default function LoginPage() {
     }
 
     const testAccounts = [
-        { label: "Student", email: "arjun.kumar@university.edu" },
-        { label: "EB (CSS)", email: "eb.css@university.edu" },
-        { label: "President", email: "president.css@university.edu" },
-        { label: "Admin", email: "admin@university.edu" },
-        { label: "Guard", email: "guard@university.edu" },
+        { label: "EB (URJA)", email: "harsh.shrivas@thapar.edu", password: "eburja@tiet1" },
+        { label: "EB (CCS)", email: "manish.tiwari@thapar.edu", password: "ebccs@tiet1" },
+        { label: "President", email: "mohit.arora@thapar.edu", password: "eburja@tiet1" },
+        { label: "Admin", email: "admin@thapar.edu", password: "admin@tiet1" },
+        { label: "Guard", email: "guard1@thapar.edu", password: "guard@tiet1" },
     ]
 
     return (
@@ -142,8 +143,15 @@ export default function LoginPage() {
                         </Button>
                     </form>
 
+                    <p className="mt-6 text-center text-gray-400 text-sm">
+                        New student?{" "}
+                        <Link href="/signup" className="text-white hover:underline font-medium">
+                            Create an account
+                        </Link>
+                    </p>
+
                     {/* Test Accounts */}
-                    <div className="mt-8 pt-6 border-t border-white/10">
+                    <div className="mt-6 pt-6 border-t border-white/10">
                         <p className="text-xs text-gray-500 text-center mb-3">Quick Login (Demo)</p>
                         <div className="flex flex-wrap gap-2 justify-center">
                             {testAccounts.map((account) => (
@@ -151,7 +159,7 @@ export default function LoginPage() {
                                     key={account.email}
                                     onClick={() => {
                                         setEmail(account.email)
-                                        setPassword("password123")
+                                        setPassword(account.password)
                                     }}
                                     className="px-3 py-1.5 text-xs bg-white/10 hover:bg-white/20 text-gray-300 rounded-full transition"
                                 >
@@ -169,3 +177,4 @@ export default function LoginPage() {
         </div>
     )
 }
+

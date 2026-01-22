@@ -45,6 +45,8 @@ model User {
   rollNo    String?  @unique
   year      String?
   branch    String?
+  hostel    String?  // Hostel name (e.g., "Hostel A", "Hostel J")
+  gender    String?  // "Male", "Female", "Other"
   password  String
   role      Role     @default(STUDENT)
   societyId String?  // For EB/President - links them to their society

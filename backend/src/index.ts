@@ -54,13 +54,40 @@ const optionalAuth = (req: any, res: any, next: any) => {
 // 1. Auth / Registration
 app.post('/api/register', async (req, res) => {
   try {
-    const { name, email, password, rollNo, year, branch, role } = req.body;
-    // In real app: hash password
+    const { name, email, password, rollNo, year, branch, hostel, gender, role } = req.body;
+    
+    // Validate required fields
+    if (!name || !email || !password || !rollNo || !hostel || !gender) {
+      return res.status(400).json({ error: 'All fields are required: name, email, password, rollNo, hostel, gender' });
+    }
+    
+    // Validate password format: firstname@tiet1
+    const firstName = name.split(' ')[0].toLowerCase();
+    const expectedPassword = `${firstName}@tiet1`;
+    if (password !== expectedPassword) {
+      return res.status(400).json({ 
+        error: `Password must be in format: (firstname)@tiet1. Expected: ${expectedPassword}` 
+      });
+    }
+    
+    // Check if email already exists
+    const existingUser = await prisma.user.findUnique({ where: { email } });
+    if (existingUser) {
+      return res.status(400).json({ error: 'Email already registered' });
+    }
+    
+    // Check if rollNo already exists
+    const existingRollNo = await prisma.user.findUnique({ where: { rollNo } });
+    if (existingRollNo) {
+      return res.status(400).json({ error: 'Roll number already registered' });
+    }
+    
     const user = await prisma.user.create({
-      data: { name, email, password, rollNo, year, branch, role: role || 'STUDENT' },
+      data: { name, email, password, rollNo, year, branch, hostel, gender, role: role || 'STUDENT' },
     });
-    res.json(user);
+    res.json({ success: true, user: { id: user.id, email: user.email, name: user.name } });
   } catch (error) {
+    console.error('Registration error:', error);
     res.status(400).json({ error: 'Registration failed' });
   }
 });
@@ -99,6 +126,10 @@ app.post('/api/login', async (req, res) => {
         name: user.name,
         role: user.role,
         rollNo: user.rollNo,
+        year: user.year,
+        branch: user.branch,
+        hostel: user.hostel,
+        gender: user.gender,
         societyId: user.societyId,
         societyName: user.society?.name,
       }
@@ -106,6 +137,49 @@ app.post('/api/login', async (req, res) => {
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ error: 'Login failed' });
+  }
+});
+
+// Change password (students only - EB passwords are fixed)
+app.post('/api/change-password', authMiddleware, async (req: any, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const userId = req.user.userId;
+    
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    // EB members cannot change password
+    if (user.role === 'SOCIETY_EB') {
+      return res.status(403).json({ error: 'EB members cannot change their password' });
+    }
+    
+    // Verify current password
+    if (user.password !== currentPassword) {
+      return res.status(401).json({ error: 'Current password is incorrect' });
+    }
+    
+    // Validate new password format: firstname@tiet1
+    const firstName = user.name.split(' ')[0].toLowerCase();
+    const expectedPassword = `${firstName}@tiet1`;
+    if (newPassword !== expectedPassword) {
+      return res.status(400).json({ 
+        error: `Password must be in format: (firstname)@tiet1. Expected: ${expectedPassword}` 
+      });
+    }
+    
+    await prisma.user.update({
+      where: { id: userId },
+      data: { password: newPassword },
+    });
+    
+    res.json({ success: true, message: 'Password changed successfully' });
+  } catch (error) {
+    console.error('Change password error:', error);
+    res.status(500).json({ error: 'Failed to change password' });
   }
 });
 
@@ -127,6 +201,10 @@ app.get('/api/me', authMiddleware, async (req: any, res) => {
       name: user.name,
       role: user.role,
       rollNo: user.rollNo,
+      year: user.year,
+      branch: user.branch,
+      hostel: user.hostel,
+      gender: user.gender,
       societyId: user.societyId,
       societyName: user.society?.name,
     });

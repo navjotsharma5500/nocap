@@ -22,231 +22,217 @@ async function main() {
   await prisma.venueBooking.deleteMany({})
   await prisma.membership.deleteMany({})
   
-  console.log('✓ Cleared operational data')
+  // Clear users (to reset with new credentials)
+  await prisma.user.deleteMany({})
+  
+  // Clear societies
+  await prisma.society.deleteMany({})
+  
+  console.log('✓ Cleared all data')
 
-  // Create societies with domains and join codes
+  // Create the four societies: URJA, TVC, CCS, Mudra
   const societies = await Promise.all([
-    prisma.society.upsert({
-      where: { name: 'CSS' },
-      update: { domain: 'SOCIETY', joinCode: 'CSS2024' },
-      create: {
-        name: 'CSS',
-        type: 'Tech',
-        domain: 'SOCIETY',
-        joinCode: 'CSS2024',
-        description: 'Computer Science Society',
-      },
-    }),
-    prisma.society.upsert({
-      where: { name: 'URJA' },
-      update: { domain: 'FEST', joinCode: 'URJA2024' },
-      create: {
+    prisma.society.create({
+      data: {
         name: 'URJA',
         type: 'Fest',
         domain: 'FEST',
         joinCode: 'URJA2024',
-        description: 'College Fest Team',
+        description: 'URJA - Annual Tech Fest',
       },
     }),
-    prisma.society.upsert({
-      where: { name: 'MLSC' },
-      update: { domain: 'SOCIETY', joinCode: 'MLSC2024' },
-      create: {
-        name: 'MLSC',
+    prisma.society.create({
+      data: {
+        name: 'TVC',
+        type: 'Media',
+        domain: 'SOCIETY',
+        joinCode: 'TVC2024',
+        description: 'TIET Video Club - Media & Production Society',
+      },
+    }),
+    prisma.society.create({
+      data: {
+        name: 'CCS',
         type: 'Tech',
         domain: 'SOCIETY',
-        joinCode: 'MLSC2024',
-        description: 'Microsoft Learn Student Club',
+        joinCode: 'CCS2024',
+        description: 'Creative Computing Society - Tech Society',
       },
     }),
-    prisma.society.upsert({
-      where: { name: 'ECHOES' },
-      update: { domain: 'SOCIETY', joinCode: 'ECHOES2024' },
-      create: {
-        name: 'ECHOES',
+    prisma.society.create({
+      data: {
+        name: 'Mudra',
         type: 'Cultural',
         domain: 'SOCIETY',
-        joinCode: 'ECHOES2024',
-        description: 'Music Society',
-      },
-    }),
-    prisma.society.upsert({
-      where: { name: 'OASIS' },
-      update: { domain: 'FEST', joinCode: 'OASIS2024' },
-      create: {
-        name: 'OASIS',
-        type: 'Annual Fest',
-        domain: 'FEST',
-        joinCode: 'OASIS2024',
-        description: 'Annual Cultural Fest',
+        joinCode: 'MUDRA2024',
+        description: 'Mudra - Dance Society',
       },
     }),
   ])
 
+  const [urja, tvc, ccs, mudra] = societies
   console.log('✓ Seeded societies:', societies.map(s => s.name).join(', '))
 
-  // Create student user
-  const student = await prisma.user.upsert({
-    where: { email: 'arjun.kumar@university.edu' },
-    update: {},
-    create: {
-      email: 'arjun.kumar@university.edu',
-      name: 'Arjun Kumar',
-      rollNo: '2021CS1234',
-      year: '3',
-      branch: 'CSE',
-      password: 'password123',
-      role: 'STUDENT',
-    },
-  })
-  console.log('✓ Seeded student:', student.email)
+  // Create multiple EBs for each society
+  // EB password format: eb(societyname)@tiet1 (NOT changeable)
+  const ebData = [
+    // URJA EBs (3 members)
+    { email: 'harsh.shrivas@thapar.edu', name: 'Harsh Shrivas', societyId: urja.id, rollNo: '102103101', year: '3', branch: 'CSE', hostel: 'Hostel A', gender: 'Male', password: 'eburja@tiet1' },
+    { email: 'aditya.kapoor@thapar.edu', name: 'Aditya Kapoor', societyId: urja.id, rollNo: '102103102', year: '3', branch: 'ECE', hostel: 'Hostel B', gender: 'Male', password: 'eburja@tiet1' },
+    { email: 'sneha.malik@thapar.edu', name: 'Sneha Malik', societyId: urja.id, rollNo: '102103103', year: '4', branch: 'CSE', hostel: 'Hostel J', gender: 'Female', password: 'eburja@tiet1' },
+    
+    // TVC EBs (2 members)
+    { email: 'varun.bhardwaj@thapar.edu', name: 'Varun Bhardwaj', societyId: tvc.id, rollNo: '102103201', year: '3', branch: 'CSE', hostel: 'Hostel C', gender: 'Male', password: 'ebtvc@tiet1' },
+    { email: 'ishita.sharma@thapar.edu', name: 'Ishita Sharma', societyId: tvc.id, rollNo: '102103202', year: '2', branch: 'IT', hostel: 'Hostel K', gender: 'Female', password: 'ebtvc@tiet1' },
+    
+    // CCS EBs (3 members)
+    { email: 'manish.tiwari@thapar.edu', name: 'Manish Tiwari', societyId: ccs.id, rollNo: '102103301', year: '4', branch: 'CSE', hostel: 'Hostel D', gender: 'Male', password: 'ebccs@tiet1' },
+    { email: 'pooja.agarwal@thapar.edu', name: 'Pooja Agarwal', societyId: ccs.id, rollNo: '102103302', year: '3', branch: 'CSE', hostel: 'Hostel L', gender: 'Female', password: 'ebccs@tiet1' },
+    { email: 'ravi.shankar@thapar.edu', name: 'Ravi Shankar', societyId: ccs.id, rollNo: '102103303', year: '3', branch: 'ECE', hostel: 'Hostel E', gender: 'Male', password: 'ebccs@tiet1' },
+    
+    // Mudra EBs (2 members)
+    { email: 'divya.kapoor@thapar.edu', name: 'Divya Kapoor', societyId: mudra.id, rollNo: '102103401', year: '2', branch: 'EE', hostel: 'Hostel M', gender: 'Female', password: 'ebmudra@tiet1' },
+    { email: 'karan.singh@thapar.edu', name: 'Karan Singh', societyId: mudra.id, rollNo: '102103402', year: '3', branch: 'MECH', hostel: 'Hostel F', gender: 'Male', password: 'ebmudra@tiet1' },
+  ]
 
-  // Create additional students
-  const student1 = await prisma.user.upsert({
-    where: { email: 'student.one@university.edu' },
-    update: {},
-    create: {
-      email: 'student.one@university.edu',
-      name: 'Student One',
-      rollNo: '2024ST01',
-      year: '2',
-      branch: 'ECE',
-      password: 'password123',
-      role: 'STUDENT',
-    },
-  })
-  console.log('✓ Seeded student 1:', student1.email)
+  const ebUsers = await Promise.all(
+    ebData.map(eb => {
+      return prisma.user.create({
+        data: {
+          email: eb.email,
+          name: eb.name,
+          rollNo: eb.rollNo,
+          year: eb.year,
+          branch: eb.branch,
+          hostel: eb.hostel,
+          gender: eb.gender,
+          password: eb.password,
+          role: 'SOCIETY_EB',
+          societyId: eb.societyId,
+        },
+      })
+    })
+  )
+  console.log('✓ Seeded EB users:', ebUsers.length)
 
-  const student2 = await prisma.user.upsert({
-    where: { email: 'student.two@university.edu' },
-    update: {},
-    create: {
-      email: 'student.two@university.edu',
-      name: 'Student Two',
-      rollNo: '2024ST02',
-      year: '2',
-      branch: 'MECH',
-      password: 'password123',
-      role: 'STUDENT',
-    },
-  })
-  console.log('✓ Seeded student 2:', student2.email)
+  // Create Presidents for each society
+  // Password format: eb(societyname)@tiet1
+  const presidentData = [
+    { email: 'mohit.arora@thapar.edu', name: 'Mohit Arora', societyId: urja.id, password: 'eburja@tiet1' },
+    { email: 'nidhi.saxena@thapar.edu', name: 'Nidhi Saxena', societyId: tvc.id, password: 'ebtvc@tiet1' },
+    { email: 'aniket.jain@thapar.edu', name: 'Aniket Jain', societyId: ccs.id, password: 'ebccs@tiet1' },
+    { email: 'shreya.bhatia@thapar.edu', name: 'Shreya Bhatia', societyId: mudra.id, password: 'ebmudra@tiet1' },
+  ]
 
-  // Create EB users for each society
-  const ebUsers = await Promise.all([
-    prisma.user.upsert({
-      where: { email: 'eb.css@university.edu' },
-      update: { societyId: societies[0].id },
-      create: {
-        email: 'eb.css@university.edu',
-        name: 'CSS EB Member',
-        password: 'password123',
-        role: 'SOCIETY_EB',
-        societyId: societies[0].id,
-      },
-    }),
-    prisma.user.upsert({
-      where: { email: 'eb.urja@university.edu' },
-      update: { societyId: societies[1].id },
-      create: {
-        email: 'eb.urja@university.edu',
-        name: 'URJA EB Member',
-        password: 'password123',
-        role: 'SOCIETY_EB',
-        societyId: societies[1].id,
-      },
-    }),
-    prisma.user.upsert({
-      where: { email: 'eb.mlsc@university.edu' },
-      update: { societyId: societies[2].id },
-      create: {
-        email: 'eb.mlsc@university.edu',
-        name: 'MLSC EB Member',
-        password: 'password123',
-        role: 'SOCIETY_EB',
-        societyId: societies[2].id,
-      },
-    }),
-  ])
-  console.log('✓ Seeded EB users:', ebUsers.map(u => u.email).join(', '))
-
-  // Create President users for each society
-  const presidentUsers = await Promise.all([
-    prisma.user.upsert({
-      where: { email: 'president.css@university.edu' },
-      update: { societyId: societies[0].id },
-      create: {
-        email: 'president.css@university.edu',
-        name: 'CSS President',
-        password: 'password123',
-        role: 'SOCIETY_PRESIDENT',
-        societyId: societies[0].id,
-      },
-    }),
-    prisma.user.upsert({
-      where: { email: 'president.urja@university.edu' },
-      update: { societyId: societies[1].id },
-      create: {
-        email: 'president.urja@university.edu',
-        name: 'URJA President',
-        password: 'password123',
-        role: 'SOCIETY_PRESIDENT',
-        societyId: societies[1].id,
-      },
-    }),
-    prisma.user.upsert({
-      where: { email: 'president.mlsc@university.edu' },
-      update: { societyId: societies[2].id },
-      create: {
-        email: 'president.mlsc@university.edu',
-        name: 'MLSC President',
-        password: 'password123',
-        role: 'SOCIETY_PRESIDENT',
-        societyId: societies[2].id,
-      },
-    }),
-  ])
-  console.log('✓ Seeded President users:', presidentUsers.map(u => u.email).join(', '))
+  const presidentUsers = await Promise.all(
+    presidentData.map(pres => {
+      return prisma.user.create({
+        data: {
+          email: pres.email,
+          name: pres.name,
+          password: pres.password,
+          role: 'SOCIETY_PRESIDENT',
+          societyId: pres.societyId,
+        },
+      })
+    })
+  )
+  console.log('✓ Seeded President users:', presidentUsers.length)
 
   // Create Faculty Admin
-  const admin = await prisma.user.upsert({
-    where: { email: 'admin@university.edu' },
-    update: {},
-    create: {
-      email: 'admin@university.edu',
+  const admin = await prisma.user.create({
+    data: {
+      email: 'admin@thapar.edu',
       name: 'Faculty Admin',
-      password: 'password123',
+      password: 'admin@tiet1',
       role: 'FACULTY_ADMIN',
     },
   })
   console.log('✓ Seeded admin:', admin.email)
 
-  // Create Guard
-  const guard = await prisma.user.upsert({
-    where: { email: 'guard@university.edu' },
-    update: {},
-    create: {
-      email: 'guard@university.edu',
-      name: 'Security Guard',
-      password: 'password123',
+  // Create Guards
+  const guard1 = await prisma.user.create({
+    data: {
+      email: 'guard1@thapar.edu',
+      name: 'Guard One',
+      password: 'guard@tiet1',
       role: 'GUARD',
     },
   })
-  console.log('✓ Seeded guard:', guard.email)
+  
+  const guard2 = await prisma.user.create({
+    data: {
+      email: 'guard2@thapar.edu',
+      name: 'Guard Two',
+      password: 'guard@tiet1',
+      role: 'GUARD',
+    },
+  })
+  console.log('✓ Seeded guards:', guard1.email, guard2.email)
 
-  // NOTE: No pre-created memberships - students must join societies manually
-  console.log('ℹ️  No memberships seeded - students must join via society code')
+  // Add EB members as approved members of their respective societies
+  // This ensures they appear in member lists and can be included in bulk requests
+  const membershipPromises: Promise<any>[] = []
+  
+  ebUsers.forEach(eb => {
+    membershipPromises.push(
+      prisma.membership.create({
+        data: {
+          userId: eb.id,
+          societyId: eb.societyId!,
+          status: 'APPROVED',
+        },
+      })
+    )
+  })
+  
+  await Promise.all(membershipPromises)
+  console.log('✓ Seeded memberships for EB members')
 
   console.log('\n✅ Database seeding complete!')
-  console.log('\n📋 Test Credentials:')
-  console.log('─────────────────────────────────────────────')
-  console.log('Student:    arjun.kumar@university.edu / password123')
-  console.log('EB (CSS):   eb.css@university.edu / password123')
-  console.log('EB (URJA):  eb.urja@university.edu / password123')
-  console.log('President:  president.css@university.edu / password123')
-  console.log('Admin:      admin@university.edu / password123')
-  console.log('Guard:      guard@university.edu / password123')
-  console.log('─────────────────────────────────────────────')
+  console.log('\n📋 Credentials:')
+  console.log('═══════════════════════════════════════════════════════════════')
+  
+  console.log('\n👥 EB MEMBERS (password: eb<societyname>@tiet1):')
+  console.log('─────────────────────────────────────────────────────────────')
+  console.log('URJA:')
+  ebUsers.filter(e => e.societyId === urja.id).forEach(e => {
+    console.log(`   ${e.email} / eburja@tiet1`)
+  })
+  console.log('TVC:')
+  ebUsers.filter(e => e.societyId === tvc.id).forEach(e => {
+    console.log(`   ${e.email} / ebtvc@tiet1`)
+  })
+  console.log('CCS:')
+  ebUsers.filter(e => e.societyId === ccs.id).forEach(e => {
+    console.log(`   ${e.email} / ebccs@tiet1`)
+  })
+  console.log('Mudra:')
+  ebUsers.filter(e => e.societyId === mudra.id).forEach(e => {
+    console.log(`   ${e.email} / ebmudra@tiet1`)
+  })
+  
+  console.log('\n👑 PRESIDENTS:')
+  presidentUsers.forEach(p => {
+    const societyName = societies.find(s => s.id === p.societyId)?.name?.toLowerCase()
+    console.log(`   ${p.email} / eb${societyName}@tiet1`)
+  })
+  
+  console.log('\n🔐 ADMIN:')
+  console.log(`   ${admin.email} / admin@tiet1`)
+  
+  console.log('\n🛡️ GUARDS:')
+  console.log(`   ${guard1.email} / guard@tiet1`)
+  console.log(`   ${guard2.email} / guard@tiet1`)
+  
+  console.log('\n📌 Society Join Codes:')
+  societies.forEach(s => {
+    console.log(`   ${s.name}: ${s.joinCode}`)
+  })
+  
+  console.log('\n📝 STUDENTS: Must register via /signup page')
+  console.log('   Password format: (firstname)@tiet1')
+  console.log('═══════════════════════════════════════════════════════════════')
 }
 
 main()
