@@ -99,6 +99,44 @@ export class PermissionService {
       throw new Error('Permission already used for today');
     }
 
+    // Time window validation
+    const isWithinTimeWindow = (date: Date, exitTimeStr: string, returnTimeStr?: string) => {
+      const now = new Date();
+      const permDate = new Date(date);
+      
+      const parseTime = (timeStr: string, baseDate: Date) => {
+        const d = new Date(baseDate);
+        const [time, modifier] = timeStr.trim().split(' ');
+        let [hours, minutes] = time.split(':').map(Number);
+        if (modifier === 'PM' && hours < 12) hours += 12;
+        if (modifier === 'AM' && hours === 12) hours = 0;
+        d.setHours(hours, minutes, 0, 0);
+        return d;
+      };
+
+      const startTime = parseTime(exitTimeStr, permDate);
+      let endTime = returnTimeStr ? parseTime(returnTimeStr, permDate) : null;
+      
+      if (!endTime) {
+        // Default to 2 AM next day
+        endTime = new Date(permDate);
+        endTime.setDate(endTime.getDate() + 1);
+        endTime.setHours(2, 0, 0, 0);
+      } else if (endTime < startTime) {
+        // Return time is likely early morning next day
+        endTime.setDate(endTime.getDate() + 1);
+      }
+
+      return now >= startTime && now <= endTime;
+    };
+
+    // Only validate window for EXIT (if not verified yet)
+    if (!permission.verifiedAt) {
+      if (!isWithinTimeWindow(permission.date, permission.exitTime, permission.returnTime || undefined)) {
+        throw new Error(`Activation failed: Current time is outside the permitted window (${permission.exitTime} to ${permission.returnTime || '2 AM'}).`);
+      }
+    }
+
     // Toggle: If verified (exited), then Check-in (De-live)
     if (permission.verifiedAt) {
       await prisma.permissionRequest.update({

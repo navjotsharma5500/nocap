@@ -156,9 +156,39 @@ export default function StudentView({ studentId }: StudentViewProps) {
     }
   }
 
+  const isWithinTimeWindow = (dateStr: string, exitTimeStr: string, returnTimeStr?: string) => {
+    const now = new Date()
+    const permDate = new Date(dateStr)
+
+    const parseTime = (timeStr: string, baseDate: Date) => {
+      const d = new Date(baseDate)
+      const [time, modifier] = timeStr.split(' ')
+      let [hours, minutes] = time.split(':').map(Number)
+      if (modifier === 'PM' && hours < 12) hours += 12
+      if (modifier === 'AM' && hours === 12) hours = 0
+      d.setHours(hours, minutes, 0, 0)
+      return d
+    }
+
+    const startTime = parseTime(exitTimeStr, permDate)
+    let endTime = returnTimeStr ? parseTime(returnTimeStr, permDate) : null
+
+    if (!endTime) {
+      // Default to 2 AM next day
+      endTime = new Date(permDate)
+      endTime.setDate(endTime.getDate() + 1)
+      endTime.setHours(2, 0, 0, 0)
+    } else if (endTime < startTime) {
+      // Return time is likely early morning next day
+      endTime.setDate(endTime.getDate() + 1)
+    }
+
+    return now >= startTime && now <= endTime
+  }
+
   const handleScan = async (result: any) => {
     if (result?.[0]?.rawValue) {
-      const scannedValue = result[0].rawValue
+      const scannedValue = result[0].rawValue.trim()
       setScannedData(scannedValue)
 
       // Logic for Hostel Desk Activation
@@ -172,11 +202,16 @@ export default function StudentView({ studentId }: StudentViewProps) {
 
         // Priority 2: Find a FRESH permission (not verified) -> To Exit
         if (!permissionToProcess) {
-          permissionToProcess = requests.find(r =>
-            r.status === 'APPROVED' &&
-            !r.verifiedAt &&
-            r.activationStatus !== 'PENDING_EB_ACTIVATION'
-          )
+          permissionToProcess = requests.find(r => {
+            const isApproved = r.status === 'APPROVED' &&
+              !r.verifiedAt &&
+              r.activationStatus !== 'PENDING_EB_ACTIVATION'
+
+            if (!isApproved) return false
+
+            // Time window validation
+            return isWithinTimeWindow(r.date, r.exitTime, r.returnTime)
+          })
         }
 
         if (permissionToProcess) {
@@ -204,9 +239,19 @@ export default function StudentView({ studentId }: StudentViewProps) {
             setActivationLoading(false)
           }
         } else {
-          // scanned correct QR but no suitable permission found
-          alert("No approved permissions found eligible for Exit or Return.")
+          // Check if there was an approved permission that was simply OUTSIDE the time window
+          const approvedButNotTime = requests.find(r =>
+            r.status === 'APPROVED' && !r.verifiedAt && r.activationStatus !== 'PENDING_EB_ACTIVATION'
+          )
+
+          if (approvedButNotTime) {
+            alert(`Too early or too late!\n\nYour permission window is from ${approvedButNotTime.exitTime} to ${approvedButNotTime.returnTime || '2:00 AM'}.\n\nPlease scan during this time.`)
+          } else {
+            alert("No approved permissions found eligible for Exit or Return.")
+          }
         }
+      } else {
+        alert(`Unrecognized QR Code: "${scannedValue}"\n\nPlease scan the specific QR code at the Hostel Front Desk.`)
       }
     }
   }
@@ -522,21 +567,6 @@ export default function StudentView({ studentId }: StudentViewProps) {
           </Card>
         )}
 
-        {/* Info Card - How Permissions Work */}
-        <Card className="bg-blue-50 border-blue-200">
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-start gap-3">
-              <Info className="w-5 h-5 text-blue-600 mt-0.5" />
-              <div>
-                <h4 className="font-medium text-blue-900">How Night Permissions Work</h4>
-                <p className="text-sm text-blue-700 mt-1">
-                  Your Society EB will select students for night permissions based on society activities.
-                  Once approved through the chain (EB → President → DOSA), you'll receive your QR pass here.
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
 
         {/* Action Buttons */}
         <div className="grid gap-3">
@@ -611,21 +641,30 @@ export default function StudentView({ studentId }: StudentViewProps) {
                         variant="outline"
                         className="mt-2 w-full text-sm gap-1"
                         onClick={async () => {
+                          // Frontend check for feedback
+                          if (!isWithinTimeWindow(req.date, req.exitTime, req.returnTime)) {
+                            alert(`Too early or too late!\n\nYour permission window is from ${req.exitTime} to ${req.returnTime || '2:00 AM'}.`);
+                            return;
+                          }
+
                           try {
                             const res = await fetch(`${API_URL}/api/student/activate-permission`, {
                               method: 'POST',
                               headers: { 'Content-Type': 'application/json' },
                               body: JSON.stringify({ permissionId: req.id, studentId })
                             })
+
+                            const data = await res.json();
+
                             if (res.ok) {
-                              alert('Activation request sent to EB for approval!')
+                              alert('✅ Permission Activated! You may leave now.');
                               fetchRequests()
                             } else {
-                              alert('Failed to request activation')
+                              alert(`Failed to activate: ${data.error || 'Unknown error'}`);
                             }
                           } catch (error) {
-                            console.error('Activation error:', error)
-                            alert('Failed to request activation')
+                            console.error('Activation error:', error);
+                            alert('Network error. Failed to activate permission.');
                           }
                         }}
                       >
