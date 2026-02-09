@@ -65,7 +65,7 @@ export class SocietyService {
       data: {
         userId,
         societyId: society.id,
-        status: 'APPROVED',
+        status: 'PENDING',
       },
       include: { society: true },
     });
