@@ -13,14 +13,32 @@ export default function GuardScannerPage() {
   const [result, setResult] = useState<any>(null)
   const [scanner, setScanner] = useState<Html5QrcodeScanner | null>(null)
   const [error, setError] = useState<string>('')
+  const [isSecure, setIsSecure] = useState(true)
 
   useEffect(() => {
-    if (scanning && !scanner) {
+    // Check if we are in a secure context (HTTPS or localhost)
+    if (typeof window !== 'undefined' && !window.isSecureContext) {
+      setIsSecure(false)
+      setError('Camera access requires a secure connection (HTTPS). Please ensure your site is SSL certified.')
+    }
+  }, [])
+
+  useEffect(() => {
+    if (scanning && !scanner && isSecure) {
       const config = {
-        fps: 10,
-        qrbox: { width: 250, height: 250 },
+        fps: 20,
+        qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
+          const minEdge = Math.min(viewfinderWidth, viewfinderHeight)
+          const qrboxSize = Math.floor(minEdge * 0.7)
+          return {
+            width: qrboxSize,
+            height: qrboxSize,
+          }
+        },
         aspectRatio: 1.0,
         disableFlip: false,
+        rememberLastUsedCamera: true,
+        supportedScanTypes: [0], // Html5QrcodeScanType.SCAN_TYPE_CAMERA
       }
 
       const html5QrScanner = new Html5QrcodeScanner(
@@ -214,6 +232,17 @@ export default function GuardScannerPage() {
         {!scanning ? (
           <Card className="shadow-2xl">
             <CardContent className="pt-8 pb-8 space-y-6">
+              {!isSecure && (
+                <div className="bg-red-500/10 border border-red-500/50 rounded-xl p-4 flex items-start gap-3">
+                  <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-bold text-red-200">Insecure Context Detected</p>
+                    <p className="text-xs text-red-300/80 mt-1">
+                      Browsers block camera access on non-HTTPS sites. Please use an SSL certificate (HTTPS) for this site to enable scanning.
+                    </p>
+                  </div>
+                </div>
+              )}
               <div className="w-24 h-24 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center mx-auto shadow-lg">
                 <Scan className="w-14 h-14 text-white" />
               </div>
@@ -234,7 +263,8 @@ export default function GuardScannerPage() {
               </div>
               <Button
                 onClick={startScanning}
-                className="w-full h-14 text-lg font-bold bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 shadow-lg"
+                disabled={!isSecure}
+                className="w-full h-14 text-lg font-bold bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Camera className="w-6 h-6 mr-2" />
                 Start Camera

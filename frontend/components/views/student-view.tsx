@@ -46,6 +46,13 @@ export default function StudentView({ studentId }: StudentViewProps) {
   const [scannedData, setScannedData] = useState<string | null>(null)
   const [qrDataUrl, setQrDataUrl] = useState<string>("")
   const [activationLoading, setActivationLoading] = useState(false)
+  const [isSecure, setIsSecure] = useState(true)
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setIsSecure(window.isSecureContext)
+    }
+  }, [])
 
   // Fetch membership status on mount
   useEffect(() => {
@@ -376,8 +383,46 @@ export default function StudentView({ studentId }: StudentViewProps) {
             <p className="text-sm text-gray-400">Point camera at the QR code at hostel front desk</p>
           </div>
 
-          <div className="rounded-xl overflow-hidden">
-            <Scanner onScan={handleScan} />
+          {!isSecure && (
+            <div className="mb-4 bg-red-500/20 border border-red-500 rounded-lg p-4 flex items-start gap-3 text-white">
+              <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-bold text-red-200">Insecure Context Detected</p>
+                <p className="text-xs text-red-300/80 mt-1">
+                  Browsers block camera access on non-HTTPS sites. Please ensure your site is SSL certified (HTTPS) to use the scanner.
+                </p>
+              </div>
+            </div>
+          )}
+
+          <div className="rounded-xl overflow-hidden relative">
+            {!isSecure && (
+              <div className="absolute inset-0 bg-gray-900/80 z-10 flex items-center justify-center p-6 text-center">
+                <p className="text-sm text-gray-300">Scanner disabled due to missing SSL (HTTPS)</p>
+              </div>
+            )}
+            <Scanner
+              onScan={handleScan}
+              constraints={{
+                aspectRatio: 1,
+                facingMode: "environment"
+              }}
+              styles={{
+                container: {
+                  width: "100%",
+                  paddingTop: "100%", // 1:1 Aspect Ratio
+                  position: "relative"
+                },
+                video: {
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "cover"
+                }
+              }}
+            />
           </div>
 
           {scannedData && (
