@@ -1,12 +1,12 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { QrCode, Users, CheckCircle, Clock, Camera, RefreshCw, Plus, Info } from "lucide-react"
+import { useState, useEffect, useRef } from "react"
+import { QrCode, Users, CheckCircle, Clock, Camera, RefreshCw, Plus, Info, X, Zap } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { Scanner } from "@yudiel/react-qr-scanner"
+import QrScanner from "qr-scanner"
 import QRCode from 'qrcode'
 import { getStatusLabel, getStatusColor } from "@/lib/workflow-data"
 
@@ -48,6 +48,11 @@ export default function StudentView({ studentId }: StudentViewProps) {
   const [activationLoading, setActivationLoading] = useState(false)
   const [isSecure, setIsSecure] = useState(true)
 
+  // QR Scanner refs and state
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const qrScannerRef = useRef<QrScanner | null>(null)
+  const [scannerError, setScannerError] = useState<string | null>(null)
+
   useEffect(() => {
     if (typeof window !== 'undefined') {
       setIsSecure(window.isSecureContext)
@@ -60,6 +65,39 @@ export default function StudentView({ studentId }: StudentViewProps) {
       fetchMembershipStatus()
     }
   }, [studentId])
+
+  // Initialize QR Scanner when on scanner screen
+  useEffect(() => {
+    if (screen === "scanner" && videoRef.current) {
+      initializeScanner()
+    }
+    return () => {
+      if (qrScannerRef.current) {
+        qrScannerRef.current.destroy()
+        qrScannerRef.current = null
+      }
+    }
+  }, [screen])
+
+  const initializeScanner = async () => {
+    if (!videoRef.current) return
+
+    try {
+      qrScannerRef.current = new QrScanner(
+        videoRef.current,
+        (result) => handleScan(result.data),
+        {
+          highlightScanRegion: true,
+          highlightCodeOutline: true,
+          preferredCamera: "environment",
+        }
+      )
+      await qrScannerRef.current.start()
+    } catch (error) {
+      console.error("Failed to start QR scanner:", error)
+      setScannerError("Failed to access camera. Please check permissions.")
+    }
+  }
 
   // Generate QR code when active pass changes
   useEffect(() => {
@@ -193,9 +231,13 @@ export default function StudentView({ studentId }: StudentViewProps) {
     return now >= startTime && now <= endTime
   }
 
-  const handleScan = async (result: any) => {
-    if (result?.[0]?.rawValue) {
-      const scannedValue = result[0].rawValue.trim()
+  const handleScan = async (scannedValue: string) => {
+    if (scannedValue) {
+      // Stop scanner while processing
+      if (qrScannerRef.current) {
+        qrScannerRef.current.stop()
+      }
+
       setScannedData(scannedValue)
 
       // Logic for Hostel Desk Activation
@@ -238,10 +280,14 @@ export default function StudentView({ studentId }: StudentViewProps) {
               fetchRequests() // Refresh list
             } else {
               alert(`Action Failed: ${responseData.error || 'Unknown error'}`)
+              // Restart scanner if failed
+              if (qrScannerRef.current) qrScannerRef.current.start()
             }
           } catch (error) {
             console.error("Activation error:", error)
             alert("Network error during activation")
+            // Restart scanner if failed
+            if (qrScannerRef.current) qrScannerRef.current.start()
           } finally {
             setActivationLoading(false)
           }
@@ -256,9 +302,13 @@ export default function StudentView({ studentId }: StudentViewProps) {
           } else {
             alert("No approved permissions found eligible for Exit or Return.")
           }
+          // Restart scanner
+          if (qrScannerRef.current) qrScannerRef.current.start()
         }
       } else {
         alert(`Unrecognized QR Code: "${scannedValue}"\n\nPlease scan the specific QR code at the Hostel Front Desk.`)
+        // Restart scanner
+        if (qrScannerRef.current) qrScannerRef.current.start()
       }
     }
   }
@@ -368,78 +418,154 @@ export default function StudentView({ studentId }: StudentViewProps) {
   // QR SCANNER SCREEN
   if (screen === "scanner") {
     return (
-      <div className="min-h-screen bg-black p-4">
-        <div className="max-w-md mx-auto">
+      <div className="fixed inset-0 z-50 bg-black flex flex-col items-center justify-center p-4 animate-in fade-in duration-300">
+        {/* Header / Back Button */}
+        <div className="absolute top-4 left-4 z-10">
           <Button
             onClick={() => { setScreen("dashboard"); setScannedData(null); }}
             variant="ghost"
-            className="text-white mb-4"
+            className="text-white hover:bg-white/10 rounded-full h-10 w-10 p-0 flex items-center justify-center"
           >
-            ← Back
+            <X className="w-6 h-6" />
           </Button>
+        </div>
 
-          <div className="text-center text-white mb-4">
-            <h2 className="text-xl font-bold">Scan Hostel QR</h2>
-            <p className="text-sm text-gray-400">Point camera at the QR code at hostel front desk</p>
+        <div className="w-full max-w-md space-y-6 relative">
+          <div className="text-center space-y-2">
+            <h2 className="text-2xl font-bold text-white tracking-tight">Scan QR Code</h2>
+            <p className="text-slate-400 text-sm">Align the hostel QR code within the frame</p>
           </div>
 
-          {!isSecure && (
-            <div className="mb-4 bg-red-500/20 border border-red-500 rounded-lg p-4 flex items-start gap-3 text-white">
-              <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-bold text-red-200">Insecure Context Detected</p>
-                <p className="text-xs text-red-300/80 mt-1">
-                  Browsers block camera access on non-HTTPS sites. Please ensure your site is SSL certified (HTTPS) to use the scanner.
-                </p>
+          <div className="relative rounded-3xl overflow-hidden shadow-2xl bg-slate-900 aspect-square border-2 border-slate-800">
+            {/* Camera View */}
+            <video
+              ref={videoRef}
+              className="w-full h-full object-cover"
+              playsInline
+              muted
+            />
+
+            {/* Scanning Overlay */}
+            <div className="absolute inset-0 pointer-events-none">
+              {/* Darkened borders */}
+              <div className="absolute inset-0 border-[40px] border-black/50 z-10"></div>
+
+              {/* Scan Frame */}
+              <div className="absolute top-0 left-0 w-full h-full z-20 flex items-center justify-center">
+                <div className="w-64 h-64 relative">
+                  {/* Corners */}
+                  <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-emerald-500 rounded-tl-xl shadow-[0_0_10px_rgba(16,185,129,0.5)]"></div>
+                  <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-emerald-500 rounded-tr-xl shadow-[0_0_10px_rgba(16,185,129,0.5)]"></div>
+                  <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-emerald-500 rounded-bl-xl shadow-[0_0_10px_rgba(16,185,129,0.5)]"></div>
+                  <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-emerald-500 rounded-br-xl shadow-[0_0_10px_rgba(16,185,129,0.5)]"></div>
+
+                  {/* Animated Laser Line */}
+                  <div className="absolute top-0 left-0 w-full h-0.5 bg-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.8)] animate-[scan_2s_ease-in-out_infinite] opacity-80"></div>
+                </div>
               </div>
             </div>
-          )}
 
-          <div className="rounded-xl overflow-hidden relative">
+            {/* Error State */}
             {!isSecure && (
-              <div className="absolute inset-0 bg-gray-900/80 z-10 flex items-center justify-center p-6 text-center">
-                <p className="text-sm text-gray-300">Scanner disabled due to missing SSL (HTTPS)</p>
+              <div className="absolute inset-0 z-30 bg-black/90 flex flex-col items-center justify-center p-6 text-center">
+                <div className="w-12 h-12 rounded-full bg-red-900/30 flex items-center justify-center mb-4 border border-red-500/50">
+                  <Camera className="w-6 h-6 text-red-500" />
+                </div>
+                <h3 className="text-lg font-bold text-red-100 mb-2">Camera Access Blocked</h3>
+                <p className="text-red-400 text-sm">
+                  This feature requires a secure HTTPS connection.
+                </p>
               </div>
             )}
-            <Scanner
-              onScan={handleScan}
-              constraints={{
-                aspectRatio: 1,
-                facingMode: "environment"
-              }}
-              styles={{
-                container: {
-                  width: "100%",
-                  paddingTop: "100%", // 1:1 Aspect Ratio
-                  position: "relative"
-                },
-                video: {
-                  position: "absolute",
-                  top: 0,
-                  left: 0,
-                  width: "100%",
-                  height: "100%",
-                  objectFit: "cover"
-                }
-              }}
-            />
+
+            {scannerError && (
+              <div className="absolute inset-0 z-30 bg-black/90 flex flex-col items-center justify-center p-6 text-center">
+                <div className="w-12 h-12 rounded-full bg-red-900/30 flex items-center justify-center mb-4 border border-red-500/50">
+                  <X className="w-6 h-6 text-red-500" />
+                </div>
+                <p className="text-red-300 text-sm mb-4">{scannerError}</p>
+                <Button
+                  onClick={() => {
+                    setScannerError(null);
+                    initializeScanner();
+                  }}
+                  variant="outline"
+                  size="sm"
+                  className="border-red-500/50 text-red-400 hover:bg-red-950 hover:text-red-300"
+                >
+                  Try Again
+                </Button>
+              </div>
+            )}
+
+            {/* Processing State */}
+            {activationLoading && (
+              <div className="absolute inset-0 z-40 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center p-6 animate-in fade-in">
+                <div className="relative mb-4">
+                  <div className="w-16 h-16 border-4 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin"></div>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <Zap className="w-6 h-6 text-emerald-500 fill-emerald-500 animate-pulse" />
+                  </div>
+                </div>
+                <h3 className="text-xl font-bold text-white mb-2">Verifying...</h3>
+                <p className="text-slate-400 text-sm font-medium">Checking your permission</p>
+              </div>
+            )}
+
+            {/* Scanned Result State (Before processing finishes or if idle) */}
+            {scannedData && !activationLoading && (
+              <div className="absolute inset-0 z-30 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center p-6 animate-in fade-in">
+                <CheckCircle className="w-16 h-16 text-emerald-500 mb-4 animate-bounce" />
+                <p className="text-white text-lg font-semibold mb-2">Code Scanned!</p>
+                <p className="text-slate-400 text-xs font-mono bg-black/50 px-3 py-1 rounded-full border border-white/10 mb-6 max-w-[200px] truncate">
+                  {scannedData}
+                </p>
+                <div className="flex gap-3 w-full">
+                  <Button
+                    onClick={() => {
+                      setScannedData(null)
+                      if (qrScannerRef.current) qrScannerRef.current.start()
+                    }}
+                    variant="outline"
+                    className="flex-1 border-white/20 text-white hover:bg-white/10 hover:text-white"
+                  >
+                    Scan Again
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      setScreen("dashboard")
+                      setScannedData(null)
+                    }}
+                    className="flex-1 bg-white text-black hover:bg-slate-200"
+                  >
+                    Close
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
 
-          {scannedData && (
-            <Card className="mt-4">
-              <CardContent className="pt-4">
-                <p className="text-sm font-medium">Scanned Data:</p>
-                <p className="text-xs text-muted-foreground break-all mt-1">{scannedData}</p>
-                <Button
-                  onClick={() => { setScreen("dashboard"); setScannedData(null); }}
-                  className="w-full mt-4"
-                >
-                  Done
-                </Button>
-              </CardContent>
-            </Card>
-          )}
+          <div className="bg-slate-900/50 backdrop-blur-md rounded-xl p-4 border border-white/5 flex items-start gap-3">
+            <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
+              <Info className="w-4 h-4 text-emerald-400" />
+            </div>
+            <div>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                <strong>Pro Tip:</strong> Ensure you are in a well-lit area. Point your camera at the specific QR code located at the Hostel Front Desk.
+              </p>
+            </div>
+          </div>
         </div>
+
+        {/* Custom Animation Styles */}
+        <style jsx global>{`
+          @keyframes scan {
+            0% { top: 0%; opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { top: 100%; opacity: 0; }
+          }
+        `}</style>
       </div>
     )
   }
